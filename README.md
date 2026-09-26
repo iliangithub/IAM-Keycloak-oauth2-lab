@@ -174,7 +174,7 @@ La aplicación web y la API que protegeremos son las partes confiantes.
 
 ## 2.10  Tokens: concepto, tipos y estructura JWT
 
-## 2.11 Los tres tokens y sus funciones
+## 2.11 Los tres tipos tokens y sus funciones
 
 ## 2.12 Flujos de concesion utilizados
 
