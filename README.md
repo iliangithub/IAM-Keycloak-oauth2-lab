@@ -385,7 +385,7 @@ y nos vamos a clients.
 
 <img width="932" height="837" alt="imagen" src="https://github.com/user-attachments/assets/c8f602d2-82e4-4ba0-82bf-6fcef18b7353" />
 
-<b>El client type es:</b>
+<p><b>El client type es:</b></p>
 
 Es el protocolo que va a hablar esa aplicación con Keycloak. Solo hay dos opciones y son excluyentes: un cliente habla OIDC o habla SAML, no los dos.
 
@@ -397,7 +397,8 @@ SAML no está muerto ni de lejos: en banca, administración pública y universid
 
 La diferencia práctica que te importa ahora: con SAML no hay access token que enviar a una API. El resultado del flujo es una aserción que establece una sesión en la aplicación. Para proteger una API, que es lo que vas a hacer, SAML no sirve.
 
-<b>El client ID es:</b>
+<p><b>El client ID es:</b></p>
+
 Es el identificador público de la aplicación. El nombre con el que esa aplicación se presenta ante Keycloak.
 
 La analogía directa: si comparas un cliente con una cuenta de usuario, el client_id es el nombre de usuario y el client_secret es la contraseña. Uno identifica, el otro demuestra.
@@ -411,3 +412,24 @@ Es único dentro del realm. No puede haber dos clientes con el mismo client_id e
 Es lo que vas a escribir en cada petición de token. Cuando dentro de un rato lances el curl, verás el parámetro client_id=api-backend. Con eso Keycloak sabe qué aplicación está pidiendo, qué flujos tiene permitidos y qué debe meter en el token.
 
 Y una consecuencia práctica: cambiarlo después rompe todas las integraciones que ya lo usan, porque es la referencia que tienen configurada. Por eso se elige con cabeza y no se toca.
+
+<img width="1142" height="772" alt="imagen" src="https://github.com/user-attachments/assets/83ac1052-2507-4caf-8034-2257018fdf37" />
+
+
+Client authentication en On, solo Service account roles marcado, y todo lo demás apagado.<br>
+Ahora, qué es cada cosa:
+
+- Client authentication: Off es cliente público, On es confidencial. Al ponerlo en On, Keycloak le genera un secreto y le exige presentarlo en cada petición.
+- Authorization: activa los servicios de autorización de grano fino de Keycloak, un motor de políticas propio suyo basado en recursos y permisos. Es una funcionalidad avanzada y no estándar.
+- Authentication flow, que es donde eliges qué flujos puede usar este cliente:
+  - Standard flow: el flujo de código de autorización, el que abre navegador y tiene una persona delante.
+  - Direct access grants: el flujo en el que la aplicación recoge usuario y contraseña y se los manda a    - Keycloak. Está desaconsejado por el RFC 9700 porque obliga al usuario a entregar su contraseña a cada aplicación.
+  - Implicit flow: devolvía el token directamente en la URL del navegador. Obsoleto y desaconsejado.
+  - Service account roles: es el que habilita el flujo de credenciales de cliente y crea la cuenta de servicio.
+  - Standard Token Exchange: permite canjear un token por otro, por ejemplo cuando un servicio necesita llamar a otro conservando la identidad del usuario original. Es útil en arquitecturas de microservicios encadenados.
+  - JWT Authorization Grant: permite que el cliente se autentique presentando un JWT firmado en lugar de un secreto compartido. Es más seguro, porque la clave privada nunca viaja, pero más complejo de montar.
+  - OAuth 2.0 Device Authorization Grant: el flujo de los dispositivos sin teclado cómodo. Es lo que hace una smart TV cuando te muestra un código y te dice que entres en una web desde el móvil.
+  - OIDC CIBA Grant: autenticación desacoplada. El usuario aprueba desde otro canal, por ejemplo la app del banco, mientras la operación ocurre en otro sitio. Muy usado en banca abierta.
+
+- Require PKCE: obliga a usar la protección PKCE en el flujo de código. Solo aplica cuando hay navegador, así que en este cliente es irrelevante.
+- Require DPoP bound tokens: esto es interesante y merece que lo conozcas aunque no lo actives. DPoP (RFC 9449) ata el token a una clave criptográfica del cliente, de modo que un token robado no sirve para nada sin esa clave. Es la respuesta al problema de fondo de los tokens portadores, que es que quien los tiene los usa.
