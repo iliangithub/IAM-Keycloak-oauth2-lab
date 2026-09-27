@@ -307,7 +307,7 @@ Al crearlo nos pedirá:
 
 <img width="1915" height="875" alt="imagen" src="https://github.com/user-attachments/assets/204f92fb-4b52-495e-8b48-8d1120e8744c" />
 
-Son tareas que Keycloak obliga a completar al usuario la próxima vez que inicie sesión, antes de dejarle pasar a ningún sitio.
+El <b>required user actions</b> son tareas que Keycloak obliga a completar al usuario la próxima vez que inicie sesión, antes de dejarle pasar a ningún sitio.
 
 Las típicas del desplegable:
 - <b>Update Password:</b> le fuerza a cambiar la contraseña.
@@ -385,3 +385,29 @@ y nos vamos a clients.
 
 <img width="932" height="837" alt="imagen" src="https://github.com/user-attachments/assets/c8f602d2-82e4-4ba0-82bf-6fcef18b7353" />
 
+<b>El client type es:</b>
+
+Es el protocolo que va a hablar esa aplicación con Keycloak. Solo hay dos opciones y son excluyentes: un cliente habla OIDC o habla SAML, no los dos.
+
+OpenID Connect es el moderno, construido sobre OAuth 2.0. Intercambia tokens JWT, funciona por peticiones HTTP con JSON, y es lo que usan las aplicaciones web actuales, las móviles y las APIs. Es lo que vas a practicar.
+
+SAML 2.0 es anterior, de principios de los 2000. Intercambia aserciones en XML firmado y el navegador las transporta mediante formularios que se autoenvían. Se diseñó pensando en el inicio de sesión único entre organizaciones, no en APIs.
+
+SAML no está muerto ni de lejos: en banca, administración pública y universidades hay muchísimas aplicaciones que solo hablan SAML, y una plataforma de IAM tiene que sostener ambos. Por eso Keycloak los ofrece.
+
+La diferencia práctica que te importa ahora: con SAML no hay access token que enviar a una API. El resultado del flujo es una aserción que establece una sesión en la aplicación. Para proteger una API, que es lo que vas a hacer, SAML no sirve.
+
+<b>El client ID es:</b>
+Es el identificador público de la aplicación. El nombre con el que esa aplicación se presenta ante Keycloak.
+
+La analogía directa: si comparas un cliente con una cuenta de usuario, el client_id es el nombre de usuario y el client_secret es la contraseña. Uno identifica, el otro demuestra.
+
+Tres cosas que conviene tener claras:
+
+No es secreto. Viaja en cada petición, aparece en las URL del navegador cuando el flujo es interactivo y cualquiera puede verlo. No pasa nada, porque identificar no es autenticar. Lo que hay que proteger es el secreto.
+
+Es único dentro del realm. No puede haber dos clientes con el mismo client_id en lab-iam, aunque sí podría existir uno igual en otro realm, porque son mundos separados.
+
+Es lo que vas a escribir en cada petición de token. Cuando dentro de un rato lances el curl, verás el parámetro client_id=api-backend. Con eso Keycloak sabe qué aplicación está pidiendo, qué flujos tiene permitidos y qué debe meter en el token.
+
+Y una consecuencia práctica: cambiarlo después rompe todas las integraciones que ya lo usan, porque es la referencia que tienen configurada. Por eso se elige con cabeza y no se toca.
