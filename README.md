@@ -455,9 +455,11 @@ Nos dirigimos al apartado "Client scopes":
 
 Pulsa en el ámbito dedicado, el que se llama api-backend-dedicated.
 
-<img width="947" height="627" alt="imagen" src="https://github.com/user-attachments/assets/400b0b27-28ef-4f4a-85d7-0f40492da008" />
+<img width="906" height="477" alt="imagen" src="https://github.com/user-attachments/assets/341c4800-0952-4acc-9e15-0beb541d1025" />
 
-<img width="866" height="512" alt="imagen" src="https://github.com/user-attachments/assets/d1d0f8b5-5a2d-49d4-a16a-9f8810d063f2" />
+<img width="966" height="375" alt="imagen" src="https://github.com/user-attachments/assets/3dc61020-6af7-4cbb-8f90-986d3cc66650" />
+
+<img width="612" height="777" alt="imagen" src="https://github.com/user-attachments/assets/29103470-b08d-4db4-93d7-b30d790fffe8" />
 
 Ahora nos vamos al apartado de credenciales:
 
@@ -592,5 +594,430 @@ En mi caso devuelve false, porque han pasado más de 5 minutos con el token desd
 
 Deberías ver "active": true y, a continuación, las mismas afirmaciones que ya decodificaste.
 
+<img width="720" height="952" alt="imagen" src="https://github.com/user-attachments/assets/4cc7ebf0-c003-4cda-81d7-c95512ddb00b" />
+
 Cuando lo tengas, dos pruebas más que cierran este bloque:
 
+```
+curl -s http://localhost:8080/realms/lab-iam/protocol/openid-connect/certs | jq
+```
+
+En mi caso devuelve esto:
+
+<pre>
+{
+  "keys": [
+    {
+      "kid": "iUFHWK-KvqUnWtO0t3mCL76O4Bv0Zfxw7du21T_Zw-E",
+      "kty": "RSA",
+      "alg": "RSA-OAEP",
+      "use": "enc",
+      "x5c": [
+        "MIICnTCCAYUCBgGg43cmjjANBgkqhkiG9w0BAQsFADASMRAwDgYDVQQDDAdsYWItaWFtMB4XDTI2MDkyNzE1MjIxMVoXDTM2MDkyNzE1MjM1MVowEjEQMA4GA1UEAwwHbGFiLWlhbTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAKKSvHNrGQLLCctZMoj5FgyrJHieq/kvRgkFR+NCR9z+0JImA4l0ql5bLXu4IoLq18DkZxjEVEVhcsBXxcglCiW9DYjE7uQR8qSwp1VXk6KoJXNzSv06W9ae2bVQoW5O+09RpWii6c+rKlSUBtD5PGFqxX3d5S+YypmRagWoYBd9gtHEax7QSOagsqwIXKDo6OMHni3e5/6b/JlDhUGTSC3OdrK7LdSZVDvfighKZjbnpzXW0oKM+lWdk0uwlJo9AqTRkW36p8l1a6stAvfmyHtdoqd01NFpDS/z912vZwJRLMhwXTDaMye6TQkApbN+BqmxAeaBufBJHxjurvITh6sCAwEAATANBgkqhkiG9w0BAQsFAAOCAQEAGzU+zikk4EMNwCsafkyBkDmx2a8xKUsdOm46Egg4wSRSY5BkH9wmkIodGI5Gz0D+RxX4JYrTdtSFCeDPGhl3V25vtvZuHz/MaYmu3I2hSWjTGKzW7VvpEadfjOm/67P59kKD7Jqtv6sX5I5g8rt2hIxgd6t0buxN0jtKKmqhR+mwFImk2Vftwj3tAp3FtKBjvx/ZqdyGDHOdMqzG4hyx8WLG2r2g9wJ7apiKTdXT2A3g3MKVLEE85QAYyUgO64J2DZVdZ1g6z83osJdIR4u6WYifPdhecZOpvlUtI93ah/D/YlphQxJqZDut0XHjrehPnBMdNSybrBZ9FaI57zD6ng=="
+      ],
+      "x5t": "bArxRSq0NvfoxU8oeJ01iLWsVQA",
+      "x5t#S256": "yVlc_9dBdyaJKL0sR4UdeoHZwKDqBseOkp2cEtMjL4I",
+      "n": "opK8c2sZAssJy1kyiPkWDKskeJ6r-S9GCQVH40JH3P7QkiYDiXSqXlste7gigurXwORnGMRURWFywFfFyCUKJb0NiMTu5BHypLCnVVeToqglc3NK_Tpb1p7ZtVChbk77T1GlaKLpz6sqVJQG0Pk8YWrFfd3lL5jKmZFqBahgF32C0cRrHtBI5qCyrAhcoOjo4weeLd7n_pv8mUOFQZNILc52srst1JlUO9-KCEpmNuenNdbSgoz6VZ2TS7CUmj0CpNGRbfqnyXVrqy0C9-bIe12ip3TU0WkNL_P3Xa9nAlEsyHBdMNozJ7pNCQCls34GqbEB5oG58EkfGO6u8hOHqw",
+      "e": "AQAB"
+    },
+    {
+      "kid": "FABDXg0rEJJdUqPzyWS6v57oN2tkjbghfdGK_XJOfyQ",
+      "kty": "RSA",
+      "alg": "RS256",
+      "use": "sig",
+      "x5c": [
+        "MIICnTCCAYUCBgGg43clyTANBgkqhkiG9w0BAQsFADASMRAwDgYDVQQDDAdsYWItaWFtMB4XDTI2MDkyNzE1MjIxMVoXDTM2MDkyNzE1MjM1MVowEjEQMA4GA1UEAwwHbGFiLWlhbTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBALs3rlGecZ0ikNYWo72Qa1KzbU7+Nn7CsESbDM3oarikAZscwPdaItkEM7PiYY8XXDmUI+oZO/mnyqsYnCrdBSjPYFs4bOjb1xrca8u6PDU3uquLEkAIgvraaILQqZH7Z/yijZiwEv0lSOmX0dwkuw0JlTZmpbruzFkieDMLHDSVw6LSmCYsEjB8gRKThpIrZPKmfCITpXE7XpRKhLKxYAD8eVnUltoT+XUZ92/e7kv/ietg2xl04fXetCHb0Z9K5bxriCC00Lj9wklEafhuPeU1ybMHYVSd1mFYTIUyX6y5OVRgzgtyH3U7tm3YBhX1kHiNIT5ApN9iopL9veHM3HMCAwEAATANBgkqhkiG9w0BAQsFAAOCAQEAP1+49kF+jq4i0pclWxPaxnUw/RyDT02zug+rPyUIqnDd/vMha34JCpu9U7aFeOOOGJyoWFlOujDzECMYIzp2SX9OcyuFkI5GVxv5qVwqUz6YQeXtu6KkZ+ih0TSn6Uz67Zzwr0ZmCCv2H5AOQp/dzYh2E7dCw7h4Wi2o+qfiZD1KgZFSLZ9GXaXF9ZhlfLadUNl9IQNEmhamoRSCjuRbrkw4WoPEwRQi2HxasRVcsRhn26cjhnxWWzEfDK4jIFgH2z0+OQd0vXalJTtljKLS/Mxfrs6JddRYtTxHJFFC1EIjBQGKWV/IrQ2xUhXQerVS8MpxTVE6Jvgijm+QWtwjuw=="
+      ],
+      "x5t": "sZog5fYP_EyGfBe60XDkBgDocXk",
+      "x5t#S256": "qiaBEm8vQ-rWD98-0xmLOsu0tfE2lbheNcsasT1r6Bo",
+      "n": "uzeuUZ5xnSKQ1hajvZBrUrNtTv42fsKwRJsMzehquKQBmxzA91oi2QQzs-JhjxdcOZQj6hk7-afKqxicKt0FKM9gWzhs6NvXGtxry7o8NTe6q4sSQAiC-tpogtCpkftn_KKNmLAS_SVI6ZfR3CS7DQmVNmaluu7MWSJ4MwscNJXDotKYJiwSMHyBEpOGkitk8qZ8IhOlcTtelEqEsrFgAPx5WdSW2hP5dRn3b97uS_-J62DbGXTh9d60IdvRn0rlvGuIILTQuP3CSURp-G495TXJswdhVJ3WYVhMhTJfrLk5VGDOC3IfdTu2bdgGFfWQeI0hPkCk32Kikv294czccw",
+      "e": "AQAB"
+    }
+  ]
+}
+</pre>
+
+
+```
+curl -s http://localhost:8080/realms/lab-iam/.well-known/openid-configuration | jq
+```
+
+<pre>
+{
+  "issuer": "http://localhost:8080/realms/lab-iam",
+  "authorization_endpoint": "http://localhost:8080/realms/lab-iam/protocol/openid-connect/auth",
+  "token_endpoint": "http://localhost:8080/realms/lab-iam/protocol/openid-connect/token",
+  "introspection_endpoint": "http://localhost:8080/realms/lab-iam/protocol/openid-connect/token/introspect",
+  "userinfo_endpoint": "http://localhost:8080/realms/lab-iam/protocol/openid-connect/userinfo",
+  "end_session_endpoint": "http://localhost:8080/realms/lab-iam/protocol/openid-connect/logout",
+  "frontchannel_logout_session_supported": true,
+  "frontchannel_logout_supported": true,
+  "jwks_uri": "http://localhost:8080/realms/lab-iam/protocol/openid-connect/certs",
+  "check_session_iframe": "http://localhost:8080/realms/lab-iam/protocol/openid-connect/login-status-iframe.html",
+  "grant_types_supported": [
+    "authorization_code",
+    "client_credentials",
+    "implicit",
+    "password",
+    "refresh_token",
+    "urn:ietf:params:oauth:grant-type:device_code",
+    "urn:ietf:params:oauth:grant-type:jwt-bearer",
+    "urn:ietf:params:oauth:grant-type:token-exchange",
+    "urn:ietf:params:oauth:grant-type:uma-ticket",
+    "urn:openid:params:grant-type:ciba"
+  ],
+  "acr_values_supported": [
+    "0",
+    "1"
+  ],
+  "response_types_supported": [
+    "code",
+    "none",
+    "id_token",
+    "token",
+    "id_token token",
+    "code id_token",
+    "code token",
+    "code id_token token"
+  ],
+  "subject_types_supported": [
+    "public",
+    "pairwise"
+  ],
+  "prompt_values_supported": [
+    "none",
+    "login",
+    "consent"
+  ],
+  "id_token_signing_alg_values_supported": [
+    "PS384",
+    "RS384",
+    "EdDSA",
+    "ES384",
+    "HS256",
+    "HS512",
+    "ES256",
+    "RS256",
+    "HS384",
+    "ES512",
+    "PS256",
+    "PS512",
+    "RS512"
+  ],
+  "id_token_encryption_alg_values_supported": [
+    "ECDH-ES+A256KW",
+    "ECDH-ES+A192KW",
+    "ECDH-ES+A128KW",
+    "RSA-OAEP",
+    "RSA-OAEP-256",
+    "RSA1_5",
+    "ECDH-ES"
+  ],
+  "id_token_encryption_enc_values_supported": [
+    "A256GCM",
+    "A192GCM",
+    "A128GCM",
+    "A128CBC-HS256",
+    "A192CBC-HS384",
+    "A256CBC-HS512"
+  ],
+  "userinfo_signing_alg_values_supported": [
+    "PS384",
+    "RS384",
+    "EdDSA",
+    "ES384",
+    "HS256",
+    "HS512",
+    "ES256",
+    "RS256",
+    "HS384",
+    "ES512",
+    "PS256",
+    "PS512",
+    "RS512",
+    "none"
+  ],
+  "userinfo_encryption_alg_values_supported": [
+    "ECDH-ES+A256KW",
+    "ECDH-ES+A192KW",
+    "ECDH-ES+A128KW",
+    "RSA-OAEP",
+    "RSA-OAEP-256",
+    "RSA1_5",
+    "ECDH-ES"
+  ],
+  "userinfo_encryption_enc_values_supported": [
+    "A256GCM",
+    "A192GCM",
+    "A128GCM",
+    "A128CBC-HS256",
+    "A192CBC-HS384",
+    "A256CBC-HS512"
+  ],
+  "request_object_signing_alg_values_supported": [
+    "PS384",
+    "RS384",
+    "EdDSA",
+    "ES384",
+    "HS256",
+    "HS512",
+    "ES256",
+    "RS256",
+    "HS384",
+    "ES512",
+    "PS256",
+    "PS512",
+    "RS512",
+    "none"
+  ],
+  "request_object_encryption_alg_values_supported": [
+    "ECDH-ES+A256KW",
+    "ECDH-ES+A192KW",
+    "ECDH-ES+A128KW",
+    "RSA-OAEP",
+    "RSA-OAEP-256",
+    "RSA1_5",
+    "ECDH-ES"
+  ],
+  "request_object_encryption_enc_values_supported": [
+    "A256GCM",
+    "A192GCM",
+    "A128GCM",
+    "A128CBC-HS256",
+    "A192CBC-HS384",
+    "A256CBC-HS512"
+  ],
+  "response_modes_supported": [
+    "query",
+    "fragment",
+    "form_post",
+    "query.jwt",
+    "fragment.jwt",
+    "form_post.jwt",
+    "jwt"
+  ],
+  "registration_endpoint": "http://localhost:8080/realms/lab-iam/clients-registrations/openid-connect",
+  "token_endpoint_auth_methods_supported": [
+    "private_key_jwt",
+    "client_secret_basic",
+    "client_secret_post",
+    "tls_client_auth",
+    "client_secret_jwt"
+  ],
+  "token_endpoint_auth_signing_alg_values_supported": [
+    "PS384",
+    "RS384",
+    "EdDSA",
+    "ES384",
+    "HS256",
+    "HS512",
+    "ES256",
+    "RS256",
+    "HS384",
+    "ES512",
+    "PS256",
+    "PS512",
+    "RS512"
+  ],
+  "introspection_endpoint_auth_methods_supported": [
+    "private_key_jwt",
+    "client_secret_basic",
+    "client_secret_post",
+    "tls_client_auth",
+    "client_secret_jwt"
+  ],
+  "introspection_endpoint_auth_signing_alg_values_supported": [
+    "PS384",
+    "RS384",
+    "EdDSA",
+    "ES384",
+    "HS256",
+    "HS512",
+    "ES256",
+    "RS256",
+    "HS384",
+    "ES512",
+    "PS256",
+    "PS512",
+    "RS512"
+  ],
+  "authorization_signing_alg_values_supported": [
+    "PS384",
+    "RS384",
+    "EdDSA",
+    "ES384",
+    "HS256",
+    "HS512",
+    "ES256",
+    "RS256",
+    "HS384",
+    "ES512",
+    "PS256",
+    "PS512",
+    "RS512"
+  ],
+  "authorization_encryption_alg_values_supported": [
+    "ECDH-ES+A256KW",
+    "ECDH-ES+A192KW",
+    "ECDH-ES+A128KW",
+    "RSA-OAEP",
+    "RSA-OAEP-256",
+    "RSA1_5",
+    "ECDH-ES"
+  ],
+  "authorization_encryption_enc_values_supported": [
+    "A256GCM",
+    "A192GCM",
+    "A128GCM",
+    "A128CBC-HS256",
+    "A192CBC-HS384",
+    "A256CBC-HS512"
+  ],
+  "claims_supported": [
+    "iss",
+    "sub",
+    "aud",
+    "exp",
+    "iat",
+    "auth_time",
+    "name",
+    "given_name",
+    "family_name",
+    "preferred_username",
+    "email",
+    "acr",
+    "azp",
+    "nonce"
+  ],
+  "claim_types_supported": [
+    "normal"
+  ],
+  "claims_parameter_supported": true,
+  "scopes_supported": [
+    "openid",
+    "address",
+    "phone",
+    "web-origins",
+    "microprofile-jwt",
+    "basic",
+    "offline_access",
+    "acr",
+    "email",
+    "service_account",
+    "roles",
+    "profile",
+    "organization"
+  ],
+  "request_parameter_supported": true,
+  "request_uri_parameter_supported": true,
+  "require_request_uri_registration": true,
+  "code_challenge_methods_supported": [
+    "plain",
+    "S256"
+  ],
+  "tls_client_certificate_bound_access_tokens": true,
+  "dpop_signing_alg_values_supported": [
+    "PS384",
+    "RS384",
+    "EdDSA",
+    "ES384",
+    "ES256",
+    "RS256",
+    "ES512",
+    "PS256",
+    "PS512",
+    "RS512"
+  ],
+  "revocation_endpoint": "http://localhost:8080/realms/lab-iam/protocol/openid-connect/revoke",
+  "revocation_endpoint_auth_methods_supported": [
+    "private_key_jwt",
+    "client_secret_basic",
+    "client_secret_post",
+    "tls_client_auth",
+    "client_secret_jwt"
+  ],
+  "revocation_endpoint_auth_signing_alg_values_supported": [
+    "PS384",
+    "RS384",
+    "EdDSA",
+    "ES384",
+    "HS256",
+    "HS512",
+    "ES256",
+    "RS256",
+    "HS384",
+    "ES512",
+    "PS256",
+    "PS512",
+    "RS512"
+  ],
+  "backchannel_logout_supported": true,
+  "backchannel_logout_session_supported": true,
+  "device_authorization_endpoint": "http://localhost:8080/realms/lab-iam/protocol/openid-connect/auth/device",
+  "backchannel_token_delivery_modes_supported": [
+    "poll",
+    "ping"
+  ],
+  "backchannel_authentication_endpoint": "http://localhost:8080/realms/lab-iam/protocol/openid-connect/ext/ciba/auth",
+  "backchannel_authentication_request_signing_alg_values_supported": [
+    "PS384",
+    "RS384",
+    "EdDSA",
+    "ES384",
+    "ES256",
+    "RS256",
+    "ES512",
+    "PS256",
+    "PS512",
+    "RS512"
+  ],
+  "require_pushed_authorization_requests": false,
+  "pushed_authorization_request_endpoint": "http://localhost:8080/realms/lab-iam/protocol/openid-connect/ext/par/request",
+  "mtls_endpoint_aliases": {
+    "token_endpoint": "http://localhost:8080/realms/lab-iam/protocol/openid-connect/token",
+    "revocation_endpoint": "http://localhost:8080/realms/lab-iam/protocol/openid-connect/revoke",
+    "introspection_endpoint": "http://localhost:8080/realms/lab-iam/protocol/openid-connect/token/introspect",
+    "device_authorization_endpoint": "http://localhost:8080/realms/lab-iam/protocol/openid-connect/auth/device",
+    "registration_endpoint": "http://localhost:8080/realms/lab-iam/clients-registrations/openid-connect",
+    "userinfo_endpoint": "http://localhost:8080/realms/lab-iam/protocol/openid-connect/userinfo",
+    "pushed_authorization_request_endpoint": "http://localhost:8080/realms/lab-iam/protocol/openid-connect/ext/par/request",
+    "backchannel_authentication_endpoint": "http://localhost:8080/realms/lab-iam/protocol/openid-connect/ext/ciba/auth"
+  },
+  "authorization_response_iss_parameter_supported": true
+}
+</pre>
+
+```
+curl -s http://localhost:8080/realms/lab-iam/protocol/openid-connect/userinfo \
+  -H "Authorization: Bearer $AT" | jq
+```
+
+Y este último no nos devolverá nada.
+
+Keycloak, en este endpoint, no manda un JSON de error. Pone toda la información en el código de estado y en la cabecera WWW-Authenticate. Así que jq recibe cero bytes, no tiene nada que formatear y no imprime nada. No es un fallo, es que estás mirando el sitio equivocado.
+
+Por eso hace falta -i, que muestra las cabeceras además del cuerpo.
+
+Y de ahí sale una lección práctica que conviene que quede en el README: no todas las APIs informan de los errores igual. Unas devuelven un JSON con el detalle, otras lo ponen en cabeceras, otras solo dejan el código de estado. Cuando algo "no devuelve nada", lo primero es mirar con -i antes de concluir que está roto.
+
+Este otro comando (añadiendo el -i y quitando el jq), nos mostrará la cabecera:
+
+```
+curl -i -s http://localhost:8080/realms/lab-iam/protocol/openid-connect/userinfo \
+  -H "Authorization: Bearer $AT"
+```
+
+<pre>
+HTTP/1.1 403 Forbidden
+Cache-Control: no-store
+Pragma: no-cache
+content-length: 0
+Content-Type: text/plain;charset=utf-8
+Referrer-Policy: no-referrer
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+WWW-Authenticate: Bearer realm="lab-iam", error="insufficient_scope", error_description="Missing openid scope"
+X-Content-Type-Options: nosniff
+X-Robots-Tag: none
+</pre>
+
+### 3.4.1 Breve experimento
