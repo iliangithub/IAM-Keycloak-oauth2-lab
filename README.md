@@ -453,13 +453,11 @@ Nos dirigimos al apartado "Client scopes":
 
 <img width="1476" height="432" alt="imagen" src="https://github.com/user-attachments/assets/6756f59c-e947-4f4f-83d3-6d78762f29f0" />
 
-
-<img width="1476" height="432" alt="imagen" src="https://github.com/user-attachments/assets/0405ecb1-d4dc-4a4f-b516-f51f3cc7350f" />
-
 Pulsa en el ámbito dedicado, el que se llama api-backend-dedicated.
 
 <img width="947" height="627" alt="imagen" src="https://github.com/user-attachments/assets/400b0b27-28ef-4f4a-85d7-0f40492da008" />
 
+<img width="866" height="512" alt="imagen" src="https://github.com/user-attachments/assets/d1d0f8b5-5a2d-49d4-a16a-9f8810d063f2" />
 
 Ahora nos vamos al apartado de credenciales:
 
