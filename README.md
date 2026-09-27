@@ -433,3 +433,154 @@ Ahora, qué es cada cosa:
 
 - Require PKCE: obliga a usar la protección PKCE en el flujo de código. Solo aplica cuando hay navegador, así que en este cliente es irrelevante.
 - Require DPoP bound tokens: esto es interesante y merece que lo conozcas aunque no lo actives. DPoP (RFC 9449) ata el token a una clave criptográfica del cliente, de modo que un token robado no sirve para nada sin esa clave. Es la respuesta al problema de fondo de los tokens portadores, que es que quien los tiene los usa.
+
+<img width="1020" height="852" alt="imagen" src="https://github.com/user-attachments/assets/f419e0d6-472c-4f8a-bb14-daee714e300a" />
+
+Fíjate en un detalle que confirma que lo has configurado bien: aquí solo salen Root URL y Home URL. No aparecen las Valid redirect URIs ni los Web origins, porque al desmarcar Standard flow le has dicho a Keycloak que este cliente nunca va a pasar por un navegador, y sin navegador no hay retorno que autorizar.
+
+Qué son esos dos campos, por si te los encuentras en el siguiente cliente:
+
+- Root URL es la raíz de la aplicación. Sirve de prefijo para las demás URL, de modo que puedas escribirlas en relativo y cambiar el dominio en un solo sitio al pasar de desarrollo a producción.
+- Home URL es a dónde se envía al usuario cuando entra a la aplicación desde Keycloak, por ejemplo desde la consola de cuenta.
+
+Ambos son comodidades de configuración, no tienen efecto de seguridad. Los que sí lo tienen son las Valid redirect URIs, que verás cuando crees el cliente público.
+
+Y lo creamos:
+
+<img width="1356" height="862" alt="imagen" src="https://github.com/user-attachments/assets/77e6cea3-2d0d-4519-8783-26875e4428b6" />
+
+Ahora nos vamos al apartado de credenciales:
+
+<img width="1232" height="757" alt="imagen" src="https://github.com/user-attachments/assets/31bdfc4c-cdfc-443d-9965-116a98d06e98" />
+
+<p><b>Y copiamos el client secret.</b></p>
+
+¿Qué es? Es la credencial de la aplicación. Sin él, Keycloak no tiene forma de saber que quien pide el token es realmente api-backend.
+- Piénsalo así: el client_id es público y aparece en cualquier sitio. Si bastara con enviarlo, cualquiera que lo supiera podría pedir tokens haciéndose pasar por tu proceso, y con esos tokens entrar a tu API. El secreto es lo que convierte "digo que soy api-backend" en "demuestro que soy api-backend".
+- Y en este flujo concreto tiene un peso especial, porque es la única credencial que hay. En el flujo con persona, la seguridad se apoya en la contraseña del usuario y en todo el proceso del navegador. Aquí no hay nada de eso: el secreto es lo único que separa a tu proceso de cualquier otro. Por eso este flujo solo se permite a clientes confidenciales, que son los que pueden custodiarlo.
+
+De ahí sale lo que ya comentamos y que conviene que quede escrito en tu README: ese valor no se escribe en el código, no se sube al repositorio y se guarda en una variable de entorno o en una bóveda de secretos. Tiene el mismo valor que una contraseña, con el agravante de que no caduca sola y suele estar en manos de varios equipos.
+
+Ahora nos volvemos al WSL e instalaremos el "jq" que es un procesador de JSON para la CLI
+
+El problema que resuelve: una API te devuelve el JSON todo en una línea, sin saltos ni indentación, porque así ocupa menos. Para una máquina da igual, para ti es ilegible. Cuando pasas la salida por jq, la reformatea y la colorea.
+
+```
+sudo apt install -y jq
+```
+
+Como se vería sin el jq:
+
+<pre>
+user@Usuario:~$ curl -s -X POST http://localhost:8080/realms/lab-iam/protocol/openid-connect/token   -d grant_type=client_credentials   -d client_id=api-backend   -d client_secret=PEGA_AQUI_EL_SECRETO
+{"access_token":"eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICJGQUJEWGcwckVKSmRVcVB6eVdTNnY1N29OMnRramJnaGZkR0tfWEpPZnlRIn0.eyJleHAiOjE3OTA1MjcwODgsImlhdCI6MTc5MDUyNjc4OCwianRpIjoidHJydGNjOjE3NDAwNGM3LWY0ZTMtYmEyNi1lZDEwLTU4OTcwY2RmNTIxMyIsImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6ODA4MC9yZWFsbXMvbGFiLWlhbSIsImF1ZCI6ImFjY291bnQiLCJzdWIiOiI0OGVjMTI4OC1lMzVmLTQ2MmYtYmZjZS1lYmVkOTY5MWNmZmYiLCJ0eXAiOiJCZWFyZXIiLCJhenAiOiJhcGktYmFja2VuZCIsImFjciI6IjEiLCJhbGxvd2VkLW9yaWdpbnMiOlsiLyoiXSwicmVhbG1fYWNjZXNzIjp7InJvbGVzIjpbIm9mZmxpbmVfYWNjZXNzIiwiZGVmYXVsdC1yb2xlcy1sYWItaWFtIiwidW1hX2F1dGhvcml6YXRpb24iXX0sInJlc291cmNlX2FjY2VzcyI6eyJhY2NvdW50Ijp7InJvbGVzIjpbIm1hbmFnZS1hY2NvdW50IiwibWFuYWdlLWFjY291bnQtbGlua3MiLCJ2aWV3LXByb2ZpbGUiXX19LCJzY29wZSI6ImVtYWlsIHByb2ZpbGUiLCJjbGllbnRIb3N0IjoiMTcyLjE3LjAuMSIsImVtYWlsX3ZlcmlmaWVkIjpmYWxzZSwicHJlZmVycmVkX3VzZXJuYW1lIjoic2VydmljZS1hY2NvdW50LWFwaS1iYWNrZW5kIiwiY2xpZW50QWRkcmVzcyI6IjE3Mi4xNy4wLjEiLCJjbGllbnRfaWQiOiJhcGktYmFja2VuZCJ9.UfxKZkUVVvlFhD_pi2CmLovS8Dur0eEG8itwEX3QDKXCgrofKiOgeQU1GGqqCkDU4nUD4-3m7tFmNMRalhNsvhxD_7tV3yO6g5bhgYsjssGsqphGENoEPdK9yIz24QMioAu7taj7-lxWOWAIO2bgVmlu9PhwpDGTkKztxHkmf3JRFii1sSHuxuiHQBavhIgeHYxChbeaOkWcgffWomjMYyxoUMRb5QbWKVjPJ1DBBw9RHYhW7pJuGRsWIt9V3-eDLH8muZnBl-IGPMhO14ggGlJTs2t11uQ8nrnsIt8785w4Z2CwTOun1gzgcQmP9iOIwypZ8Sz1Lkx_FIFh7MPCUA","expires_in":300,"refresh_expires_in":0,"token_type":"Bearer","not-before-policy":0,"scope":"e
+</pre>
+
+Sin embargo con el jq:
+
+```
+curl -s -X POST http://localhost:8080/realms/lab-iam/protocol/openid-connect/token \
+  -d grant_type=client_credentials \
+  -d client_id=api-backend \
+  -d client_secret=PEGA_AQUI_EL_SECRETO | jq
+```
+
+Qué hace cada parte, que es lo que importa:
+
+- "-X POST:" el endpoint de token solo acepta POST. Las credenciales nunca viajan en la URL.
+- "-d:" cada uno de estos es un campo del cuerpo de la petición, en formato de formulario.
+- "grant_type=client_credentials": aquí es donde le dices a Keycloak qué flujo quieres. Este mismo endpoint atiende todos los flujos, y este parámetro es el que los distingue.
+- "client_id y client_secret": quién eres y la prueba de que lo eres.
+- "| jq": pasa la respuesta a jq para verla formateada en lugar de como una línea ilegible.
+
+Y así es como se vería:
+
+<img width="708" height="465" alt="imagen" src="https://github.com/user-attachments/assets/51a89e18-1ab1-4136-bf67-0b6a7f61e1eb" />
+
+Funciona. Y confirma tres cosas que te anticipé, que conviene que veas escritas:
+- No hay refresh_token. Fíjate además en refresh_expires_in: 0. Keycloak te está diciendo explícitamente que no emite uno, porque en este flujo no hace falta: el cliente tiene el secreto y puede pedir otro cuando quiera.
+- `expires_in: 300`, cinco minutos. Ese es el valor por defecto del realm y es el que vas a bajar a un minuto más adelante para ver la caducidad en directo.
+- `scope: "email profile"`, sin openid. Por eso este token no es OIDC, es OAuth puro. Y por eso, cuando pruebes el endpoint /userinfo con él, es probable que te lo rechace.
+
+Ahora decodifica el cuerpo tú mismo, es decir, vamos a copiar ese "churro" de texto:
+
+```
+echo 'PEGA_AQUI_EL_TOKEN' | cut -d. -f2 | base64 -d 2>/dev/null | jq
+```
+
+<img width="915" height="892" alt="imagen" src="https://github.com/user-attachments/assets/883915aa-b446-4005-8938-e89eb33b14d4" />
+
+<p><b>Tiempos</b></p>
+- `iat` (issued at): 1790526999, que es el 27 de septiembre de 2026 a las 16:36:39 UTC, o sea las 18:36 hora peninsular. El instante en que Keycloak lo emitió.
+- `exp` (expiration): 1790527299, las 16:41:39 UTC. Resta uno del otro y salen exactamente 300 segundos, los cinco minutos que anunciaba expires_in.
+
+Ambos van en segundos desde el 1 de enero de 1970, que es el formato epoch de Unix. Se usa así porque es un entero sin zonas horarias ni ambigüedades de formato: cualquier sistema del mundo lo interpreta igual.
+
+Quien valida el token compara exp con su propio reloj. De ahí un problema clásico en producción: si los relojes de dos servidores van desincronizados, uno puede rechazar tokens que el otro acaba de emitir. Por eso en entornos serios se sincroniza la hora por NTP y los validadores admiten un margen de tolerancia de unos segundos.
+- `jti` (JWT ID): identificador único de este token concreto. Sirve para detectar reutilizaciones, para mantener listas de revocación y, sobre todo, para correlacionar en auditoría: si en el registro de tu API aparece una operación sospechosa con ese jti, puedes cruzarlo con el registro de emisión de Keycloak y saber exactamente quién y cuándo lo pidió. El prefijo trrtcc: es algo interno de Keycloak y no sé con certeza qué significa, no te lo voy a inventar.
+
+<p><b>Quién y para quién</b></p>
+
+- `iss` (issuer): http://localhost:8080/realms/lab-iam. Quién emitió el token. Tu API tendrá que comprobar que este valor coincide exactamente con el emisor que espera. Y ojo con esto, porque te va a morder más adelante: si montas la API dentro de otro contenedor, para ella localhost no es Keycloak, es ella misma. Ese desajuste entre la URL pública del emisor y la interna es uno de los errores más frecuentes al desplegar.
+- `aud` (audience): account. Para quién está pensado el token. Aquí no aparece tu API, aparece el cliente interno de gestión de cuenta de Keycloak, porque es el único destinatario que el realm sabe añadir por defecto.
+
+La consecuencia práctica: una API que valide la audiencia con rigor rechazaría este token, y haría bien. Un token emitido para un destinatario no debería servir en otro, porque si no, cualquier servicio que reciba tu token puede darse la vuelta y usarlo contra un tercero haciéndose pasar por ti. Se corrige añadiendo un mapeador de audiencia al cliente o al ámbito.
+
+- `sub` (subject): 48ec1288-.... El identificador del sujeto del que habla el token. Es un UUID y no un nombre a propósito: los nombres cambian (una persona se casa, un cliente se renombra) y el identificador no debe cambiar nunca, porque es lo que las aplicaciones guardan para asociar sus datos a esa identidad.
+- `azp` (authorized party): api-backend. Qué cliente pidió el token. En este caso coincide con quien lo va a usar, pero en flujos donde un cliente pide tokens destinados a otro, azp y aud son distintos y esa diferencia importa.
+- `typ`: Bearer. El tipo de token, portador.
+
+<p><b>Autenticación y autorización</b></p>
+
+- `acr` (authentication context class reference): 1. Indica con qué nivel de garantía se autenticó el sujeto. Se usa para políticas del tipo "para transferir más de mil euros exijo que te hayas autenticado con doble factor en los últimos cinco minutos". Aquí es un valor básico, porque no hubo persona ni segundo factor.
+- `realm_access.roles`: los roles de realm que trae el sujeto. Los tres que ves son de serie:
+  - default-roles-lab-iam es un rol compuesto que Keycloak asigna automáticamente a todo el mundo y que agrupa los permisos mínimos.
+  - offline_access permite solicitar tokens de sesión desconectada, los que sobreviven a que el usuario cierre el navegador.
+  - uma_authorization va ligado al motor de autorización de grano fino, ese que dejaste en Off.
+
+- resource_access.account.roles: roles sobre un cliente concreto, en este caso sobre account. Le permiten ver y gestionar su propio perfil.
+
+Ahí tienes la diferencia entre los dos planos: los roles de realm valen en todo el realm, los de cliente solo tienen sentido dentro de una aplicación. Un mismo usuario puede ser "lector" en una aplicación y "administrador" en otra sin colisión, porque cada rol vive en su cliente.
+
+- scope: email profile. Los ámbitos concedidos. Falta openid, y por eso este token no activa el comportamiento OIDC.
+
+<p><b>Contexto y ruido</b></p>
+- `clientHost` y `clientAddress`: `172.17.0.1`, la dirección desde la que se hizo la petición vista desde dentro del contenedor. Esa IP es la pasarela de la red de Docker, o sea tu WSL visto desde Keycloak. Es información de auditoría.
+- `email_verified: false` y `preferred_username: service-account-api-backend`: vienen del perfil de la cuenta de servicio que Keycloak creó sola. El correo verificado aquí no significa nada, porque esta identidad no tiene correo.
+
+## 3.4. LEER EL TOKEN POR DENTRO
+
+Siguiente paso: la introspección, que es preguntarle al servidor si ese token sigue vivo.
+
+Primero vamos a guardar el token en una variable para no andar pegándolo:
+
+```
+AT=$(curl -s -X POST http://localhost:8080/realms/lab-iam/protocol/openid-connect/token \
+  -d grant_type=client_credentials -d client_id=api-backend \
+  -d client_secret=TU_SECRETO | jq -r .access_token)
+```
+
+Ya se ha almacenado ese token en la variable:
+
+```
+echo $AT
+```
+
+Y ahora vamos a preguntar por él usando la variable:
+
+```
+curl -s -X POST http://localhost:8080/realms/lab-iam/protocol/openid-connect/token/introspect \
+  -u api-backend:TU_SECRETO \
+  -d token=$AT | jq
+```
+
+El -u es autenticación HTTP básica: manda usuario y contraseña en una cabecera. Aquí el usuario es el client_id y la contraseña el secreto. Fíjate en el detalle: para preguntar por un token también hay que estar autenticado. Keycloak no le cuenta a cualquiera qué contiene un token ajeno.
+
+<img width="922" height="205" alt="imagen" src="https://github.com/user-attachments/assets/e5471001-780f-42c9-a37e-6fba012566fb" />
+
+En mi caso devuelve false, porque han pasado más de 5 minutos con el token desde que lo pedí y ha caducado.
+
+Deberías ver "active": true y, a continuación, las mismas afirmaciones que ya decodificaste.
+
+Cuando lo tengas, dos pruebas más que cierran este bloque:
+
