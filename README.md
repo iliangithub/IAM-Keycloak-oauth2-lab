@@ -1185,3 +1185,93 @@ Y nos abrirá una nueva pestaña vía web, si nos sale un error es porque no lo 
 
 <img width="1427" height="717" alt="imagen" src="https://github.com/user-attachments/assets/d15e9161-0b4e-4e05-9845-426e86055284" />
 
+Finalmente nos autenticamos con el único usuario que tenemos en el realm, que es cesar23:
+
+<img width="945" height="372" alt="imagen" src="https://github.com/user-attachments/assets/f88354e4-a46e-4e4e-b96a-da13c26c51e3" />
+
+Y aquí lo tenemos:
+
+<img width="1381" height="807" alt="imagen" src="https://github.com/user-attachments/assets/f76dcb85-c2d0-46ee-b951-42ebe12cc2a1" />
+
+/userinfo devuelve las afirmaciones de identidad de la persona dueña del token, limitadas a los ámbitos concedidos. En tu caso, con openid email profile, debería salir algo así:
+
+<pre>
+json
+{
+  "sub": "920ba24c-b418-4c90-99af-48c49078b7a1",
+  "email_verified": true,
+  "name": "cesar venegas",
+  "preferred_username": "cesar23",
+  "given_name": "cesar",
+  "family_name": "venegas",
+  "email": "cesar.venegas@companiaficticia.com"
+}
+</pre>
+
+Datos de perfil y nada más. Ni roles, ni tokens, ni información de sesión.
+
+Y la pregunta natural es: si eso ya viene dentro del id_token, ¿para qué existe este endpoint? Por dos motivos.
+
+El id_token es una foto del momento del inicio de sesión. Si el usuario cambia su correo media hora después, el id_token que tiene la aplicación sigue diciendo el antiguo. /userinfo se consulta en vivo y devuelve el estado actual.
+
+Permite mantener los tokens pequeños. Un proveedor puede emitir un id_token mínimo y dejar que quien necesite el perfil completo lo pida aparte. Los tokens viajan en cada petición, así que cada byte cuenta.
+
+Fíjate además en quién es el sujeto: ese sub es el mismo que aparece en los tres tokens. Es el identificador inmutable de cesar23 dentro de este realm, y es lo que una aplicación guardaría en su base de datos para asociar sus datos a esa persona, nunca el nombre de usuario ni el correo, que pueden cambiar.
+
+Le damos a `Use this token`.
+
+Y ahora ya finalmente le podemos dar a `Send`.
+
+<img width="1410" height="657" alt="imagen" src="https://github.com/user-attachments/assets/c9e63bae-bd6f-4244-9647-df6792acddd9" />
+
+Y abajo nos aparecerá como la "query":
+
+<img width="1406" height="787" alt="imagen" src="https://github.com/user-attachments/assets/ea15641b-3271-4e3f-9a70-d750fd47780e" />
+
+## 3.7 VER LA RENOVACION Y LA ROTACION EN DIRECTO
+
+Desde Keycloak, vamos al realm `lab-iam`.
+
+<img width="1766" height="821" alt="imagen" src="https://github.com/user-attachments/assets/8662e457-c9ce-4174-9681-9cc426f8602d" />
+
+Ponemos el "Access Token Lifespan" a 1 minuto. Bajamos para abajo:
+
+<img width="455" height="277" alt="imagen" src="https://github.com/user-attachments/assets/92e39768-4b86-4d64-81e2-774b316ab2cb" />
+
+Encontraremos el "Revoke Refresh Token: On" y el "Refresh Token Max Reuse: 0". Y guardamos.
+Ahora en el Postman, volvemos a pedir un access token:
+
+<img width="996" height="607" alt="imagen" src="https://github.com/user-attachments/assets/9aff61ea-fd05-40d7-8e54-03593df2289a" />
+
+Copiaremos el refresh token en una variable:
+
+```
+RT='PEGA_AQUI_EL_REFRESH_TOKEN'
+```
+
+Y luego lo "canjeamos":
+
+```
+curl -s -X POST http://localhost:8080/realms/lab-iam/protocol/openid-connect/token \
+  -d grant_type=refresh_token \
+  -d client_id=spa-web \
+  -d refresh_token=$RT | jq
+```
+
+Con esto confirmaremos la rotación, el refresh token que ha llegado, es distinto al que enviamos.
+
+<img width="1476" height="237" alt="imagen" src="https://github.com/user-attachments/assets/f6375909-8aa4-47f2-88bd-73c6fdbe97a4" />
+
+Finalmente, vamos a ver que pasa si volvemos a ejecutar este mismo comando, el de antes:
+
+```
+curl -s -X POST http://localhost:8080/realms/lab-iam/protocol/openid-connect/token \
+  -d grant_type=refresh_token \
+  -d client_id=spa-web \
+  -d refresh_token=$RT | jq
+```
+
+<img width="1247" height="200" alt="imagen" src="https://github.com/user-attachments/assets/f13e7073-4506-4674-80f3-750d1d2dfdc7" />
+
+Nos da error y eso está bien, porque es así como lo configuramos.
+
