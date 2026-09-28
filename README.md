@@ -335,6 +335,11 @@ Y aceptamos y lo creamos. Como nos habremos dado cuenta, el estilo de la interfa
 > de una practica posterior.
 >
 
+Vamos además a añadirle una contraseña, más que nada porque sin contraseña no podrá autenticarse y el usuario por lo tanto es inservible literalmente:
+
+<img width="966" height="562" alt="imagen" src="https://github.com/user-attachments/assets/03f20048-6021-4ec7-981c-374fabfef7f2" />
+
+En mi caso contraseña "a".
 
 ## 3.3. CLIENTE CONFIDENCIAL Y FLUJO DE CREDENCIALES DE CLIENTE
 
