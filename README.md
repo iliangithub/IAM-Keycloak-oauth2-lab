@@ -1021,3 +1021,154 @@ X-Robots-Tag: none
 </pre>
 
 ### 3.4.1 Breve experimento
+
+Experimentos que en ambos casos nos deben rechazar:
+
+#### 3.4.1.1 Experimento 1: la caducidad.
+
+```
+SECRET=<poner aqui el secreto>
+
+AT=$(curl -s -X POST http://localhost:8080/realms/lab-iam/protocol/openid-connect/token \
+  -d grant_type=client_credentials -d client_id=api-backend \
+  -d client_secret=$SECRET | jq -r .access_token)
+
+date -u; curl -s -X POST http://localhost:8080/realms/lab-iam/protocol/openid-connect/token/introspect \
+  -u api-backend:$SECRET -d token=$AT | jq '{active, exp, iat}'
+```
+
+Ahora esperamos algo más de cinco minutos sin volver a pedir token y lanzamos solo la segunda parte:
+
+```
+date -u; curl -s -X POST http://localhost:8080/realms/lab-iam/protocol/openid-connect/token/introspect \
+  -u api-backend:$SECRET -d token=$AT | jq
+```
+
+Debe salir {"active": false} y nada más. 
+
+<img width="1045" height="175" alt="imagen" src="https://github.com/user-attachments/assets/3fa11b3e-a1c1-4628-a8dd-7c9c5c6a7264" />
+
+Fíjate en el detalle: cuando el token no es válido, la introspección no te cuenta nada de él. No dice que caducó, ni de quién era. Eso es deliberado: si diera detalles, serviría para sonsacar información sobre tokens ajenos.
+
+Y el contraste que quieres documentar: decodifica ese mismo token caducado y verás que sus datos siguen perfectamente legibles. El token no se destruye ni se borra, simplemente deja de ser aceptado.
+
+#### 3.4.1.2 Experimento 2: la firma manipulada.
+
+Aquí vamos a modificar el contenido del token conservando la firma original, que es exactamente lo que intentaría un atacante para, por ejemplo, darse roles que no tiene.
+
+```
+H=$(echo $AT | cut -d. -f1)
+P=$(echo $AT | cut -d. -f2)
+S=$(echo $AT | cut -d. -f3)
+
+# Cambiamos un valor dentro del cuerpo y lo volvemos a codificar
+NEWP=$(echo $P | tr '_-' '/+' | base64 -d 2>/dev/null \
+  | sed 's/"acr":"1"/"acr":"9"/' \
+  | base64 -w0 | tr '/+' '_-' | tr -d '=')
+
+FAKE="$H.$NEWP.$S"
+```
+
+Comprobemos primero que la manipulación surtió efecto:
+
+```
+echo $FAKE | cut -d. -f2 | tr '_-' '/+' | base64 -d 2>/dev/null | jq .acr
+```
+
+Debe decir "9". 
+
+<img width="1165" height="402" alt="imagen" src="https://github.com/user-attachments/assets/22330036-28a7-415b-9513-adc04b38a76e" />
+
+Ya tienes un token con el contenido alterado y la firma vieja. Ahora preséntalo:
+
+```
+curl -s -X POST http://localhost:8080/realms/lab-iam/protocol/openid-connect/token/introspect \
+  -u api-backend:$SECRET -d token=$FAKE | jq
+
+curl -i -s http://localhost:8080/realms/lab-iam/protocol/openid-connect/userinfo \
+  -H "Authorization: Bearer $FAKE"
+```
+
+<img width="1362" height="452" alt="imagen" src="https://github.com/user-attachments/assets/78dea3c2-c1ba-4bc1-9674-3afcec0e9624" />
+
+El contenido de un JWT es manipulable por cualquiera, porque base64 no protege nada. Lo que no se puede falsificar es la firma, porque haría falta la clave privada del realm, que nunca sale de Keycloak. De ahí la regla: nunca confíes en un JWT que no hayas verificado, aunque lo que pone dentro te parezca razonable.
+
+## 3.6. CLIENTE PUBLICO CON PKCE DESDE POSTMAN
+
+Vamos a crear un segundo cliente, `spa-web`.
+
+General settings: 
+- Client ID spa-web.
+
+<img width="636" height="780" alt="imagen" src="https://github.com/user-attachments/assets/8d8f6fb5-d831-4d2d-a4b4-ccfc94e0fdf4" />
+
+Capability config:
+- Client authentication: Off
+- Standard flow: marcado
+- Require PKCE: marcado.
+- PKCE Method: S256.
+- Todo lo demás desmarcado
+
+<img width="842" height="562" alt="imagen" src="https://github.com/user-attachments/assets/be967796-3e17-4462-87d1-2707d2e2369d" />
+
+Login settings:
+- Valid redirect URIs: https://oauth.pstmn.io/v1/callback
+- Web origins: *
+
+<img width="931" height="781" alt="imagen" src="https://github.com/user-attachments/assets/a21d12a7-1219-4f70-9ddf-771ca1c23822" />
+
+
+Es el nombre que le vamos a poner al segundo cliente, el público. spa viene de Single Page Application, o sea una aplicación web de una sola página, de las que corren enteras en el navegador con JavaScript (Angular, React, Vue).
+
+Es el caso típico de cliente público: su código se descarga al navegador del usuario, cualquiera puede abrir las herramientas de desarrollo y leerlo, así que no puede guardar ningún secreto. De ahí que necesite PKCE.
+
+El nombre es arbitrario, lo elegí yo para que se entienda de un vistazo qué representa cada cliente:
+- api-backend: un proceso de servidor, confidencial, sin persona.
+- spa-web: una aplicación de navegador, pública, con persona.
+
+
+Vamos a instalar postman para escritorio en Windows:
+
+<a> https://www.postman.com/downloads/ </a>
+
+Un cliente gráfico de HTTP pensado para trabajar con APIs. En esencia hace lo mismo que curl, pero con interfaz y con memoria.
+
+Lo que aporta frente a la terminal:
+
+Colecciones: guardas las peticiones organizadas en carpetas y las reutilizas. No dependes del historial de la shell.
+Variables de entorno: defines una vez la URL base o el client_id y las usas en todas las peticiones con {{nombre}}. Cambiar de desarrollo a producción es cambiar de entorno, no reescribir cada petición.
+Scripts: puedes ejecutar código antes y después de cada petición, por ejemplo para extraer el token de la respuesta y guardarlo en una variable automáticamente.
+Ayudante de OAuth 2.0: y esta es la razón por la que lo usamos ahora. Ejecuta el flujo completo por ti, incluido el paso por el navegador para que te autentiques, y la gestión de PKCE. Con curl ese flujo es un incordio, porque hay que interceptar a mano el código de autorización que vuelve en la URL.
+
+En el sector se usa a diario para probar endpoints, depurar integraciones y documentar APIs. Que lo sepas manejar era una de tus lagunas declaradas, y con esta práctica queda cubierta.
+
+Un apunte de criterio que ya comentamos y que conviene mantener: el primer flujo lo hiciste con curl a propósito, para ver la mecánica sin capas intermedias. Ahora que entiendes lo que ocurre por debajo, Postman es comodidad, no magia.
+
+En nuestro caso no vamos a iniciar sesión:
+
+<img width="1601" height="987" alt="imagen" src="https://github.com/user-attachments/assets/8175cd91-79d3-427c-8e9a-f21435096472" />
+
+Cuando estemos aquí vamos a mandar un GET:
+
+```
+http://localhost:8080/realms/lab-iam/protocol/openid-connect/userinfo
+```
+
+<img width="1440" height="387" alt="imagen" src="https://github.com/user-attachments/assets/50c74543-3531-445e-8710-38d0192152c8" />
+
+<img width="1252" height="620" alt="imagen" src="https://github.com/user-attachments/assets/803ae42d-cd25-4cdb-8f49-0daeb5f03428" />
+
+Rellena:
+- Token Name: lab-iam
+- Grant type: Authorization Code (With PKCE)
+- Callback URL: https://oauth.pstmn.io/v1/callback y deja marcada la casilla Authorize using browser
+- Auth URL: http://localhost:8080/realms/lab-iam/protocol/openid-connect/auth
+- Access Token URL: http://localhost:8080/realms/lab-iam/protocol/openid-connect/token
+- Client ID: spa-web
+- Client Secret: vacío
+- Code Challenge Method: SHA-256
+- Code Verifier: déjalo vacío, Postman lo genera solo
+- Scope: openid profile email
+- State: pon cualquier cosa, por ejemplo xyz123
+- Client Authentication: "Send client credentials in body"
+
