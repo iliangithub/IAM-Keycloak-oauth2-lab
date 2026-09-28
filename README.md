@@ -1232,11 +1232,11 @@ Y abajo nos aparecerá como la "query":
 
 Desde Keycloak, vamos al realm `lab-iam`.
 
-<img width="1766" height="821" alt="imagen" src="https://github.com/user-attachments/assets/8662e457-c9ce-4174-9681-9cc426f8602d" />
+<img width="1746" height="772" alt="imagen" src="https://github.com/user-attachments/assets/efd8e780-73cd-47a0-8756-b2849ce2802f" />
 
 Ponemos el "Access Token Lifespan" a 1 minuto. Bajamos para abajo:
 
-<img width="455" height="277" alt="imagen" src="https://github.com/user-attachments/assets/92e39768-4b86-4d64-81e2-774b316ab2cb" />
+<img width="782" height="617" alt="imagen" src="https://github.com/user-attachments/assets/c00560e6-0555-40c5-84ce-3436c6bb2fef" />
 
 Encontraremos el "Revoke Refresh Token: On" y el "Refresh Token Max Reuse: 0". Y guardamos.
 Ahora en el Postman, volvemos a pedir un access token:
