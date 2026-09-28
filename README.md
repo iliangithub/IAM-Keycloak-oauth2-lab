@@ -1,6 +1,14 @@
 # 1.0 Introducción.
 
-El objetivo de esta práctica no solo es profundizar en las disciplinas 
+En esta práctica monto desde cero un laboratorio de gestión de identidades y accesos (IAM) con Keycloak, sobre WSL y Docker.
+
+No quiero quedarme en levantar la herramienta y que funcione. Lo que busco es entender por qué funciona así: qué es un token realmente, qué diferencia hay entre autenticar y autorizar, por qué hay tres tokens distintos y qué pasa cuando algo falla. Por eso una parte de la práctica consiste en romper cosas a propósito y apuntar lo que responde el servidor de verdad, no lo que yo esperaba que respondiera.
+
+Voy a tocar dos flujos de OAuth 2.0, el de credenciales de cliente y el de código de autorización con PKCE, y a partir de ahí los tokens JWT: leerlos, validarlos, verlos caducar, rotarlos y revocarlos. También uso Postman, que es una de las cosas que quería aprender a manejar.
+
+Lo que no entra aquí: SAML, la federación contra LDAP o Active Directory y el aprovisionamiento con SCIM. Eso lo dejo para prácticas siguientes.
+
+Un aviso antes de empezar: todo esto corre en mi máquina, sobre HTTP y sin TLS, y con contraseñas de juguete. Nada de lo que hay aquí sirve tal cual para producción, y donde eso importa lo digo.
 
 # 2.0 Definiciones.
 
@@ -10,12 +18,12 @@ Antes de empezar con la resolución de la práctica, es de interés primero comp
 
 Sin entrar en gran profundidad vamos a definir un poco esto.
 
-La ciberseguridad, es un concepto general que engloba múltiples disciplinas y abarca tanto un plano físico como uno lógico.
+La ciberseguridad es un concepto general que engloba múltiples disciplinas y abarca tanto un plano físico como uno lógico.
 
-Al hablar de un plano lógico o físico, nos referimos a que no solo hablamos de software, prevenir malware, ciberataques, reducir superficies de ataque... Si no cosas que parecen tan ajenas, pero realmente forman parte de la disciplina, como el uso de cámaras de seguridad, sensores, escáneres, etc...
+Al hablar de un plano lógico o físico, nos referimos a que no solo hablamos de software, prevenir malware, ciberataques, reducir superficies de ataque... Sino cosas que parecen ajenas y realmente forman parte de la disciplina, como el uso de cámaras de seguridad, sensores, escáneres, etc.
 
 Cuando hablamos de múltiples disciplinas mencionamos:
-- La ingeniería de redes (aunque no sea 100% específico de la ciberseguridad).
+- La ingeniería de redes (aunque no sea 100% específica de la ciberseguridad).
   - Segmentación y microsegmentación (VLAN, zonas, DMZ).
   - Cortafuegos, NGFW y listas de control de acceso.
   - VPN e IPsec, acceso remoto.
@@ -32,7 +40,7 @@ Cuando hablamos de múltiples disciplinas mencionamos:
   - Copias de seguridad, recuperación y continuidad técnica.
   - Cifrado en reposo y gestión de claves y secretos.
   - Automatización e infraestructura como código, DevSecOps.
-- El blueteam y todo lo que engloba.
+- El Blue Team y todo lo que engloba.
   - SOC: monitorización continua, SIEM, triaje y respuesta de primer y segundo nivel.
   - DFIR: análisis forense digital y respuesta a incidentes.
   - CTI: inteligencia de amenazas, indicadores, atribución, informes.
@@ -40,15 +48,14 @@ Cuando hablamos de múltiples disciplinas mencionamos:
   - Ingeniería de detección: creación y afinado de reglas (Sigma, YARA, KQL).
   - Gestión de vulnerabilidades y de exposición.
   - Purple Team: validación de detecciones contra técnicas reales.
-- RedTeam.
+- Red Team.
   - Test de intrusión sobre red, sistemas y aplicaciones.
   - Simulación de adversario y ejercicios de emulación.
   - Ingeniería social, phishing y pretexto.
   - Seguridad ofensiva de aplicaciones y desarrollo de exploits.
   - OSINT y reconocimiento.
-Seguridad física ofensiva (intrusión, clonado de tarjetas).
-- Gestión de proyectos, etc.
-  - Gobierno, riesgo y cumplimiento (GRC).
+  - Seguridad física ofensiva (intrusión, clonado de tarjetas).
+- Gobierno, riesgo y cumplimiento (GRC).
   - Normativa y marcos: ISO 27001, ENS, NIS2, DORA, PCI DSS.
   - Análisis y tratamiento de riesgos.
   - Políticas, procedimientos y auditoría interna.
@@ -64,11 +71,11 @@ Seguridad física ofensiva (intrusión, clonado de tarjetas).
   - CIAM: identidad de clientes y usuarios externos.
 
 > [!NOTE]
-> (Hemos mencionado puestos de trabajo / títulos, pero eso muy subjetivo y cada empresa pone el nombre que le da la gana realmente). SOC, DFIR, CTI y CTH no son sólo puestos, si no más bien áreas y funciones.
+> Algunas de estas siglas se usan también como nombre de puesto, pero no son lo mismo. SOC, DFIR, CTI y CTH son áreas y funciones. Los títulos cambian muchísimo de una empresa a otra, así que en esta lista pongo lo que se hace, no cómo se llama el que lo hace.
 >
 
 Por lo tanto, el IAM es una disciplina de la ciberseguridad.<br>
-Que gobierna sobre el ciclo de vida de las identidades digitales (personas, cuentas de servicio y dispositivos) y de los accesos o las cosas que pueden hacer.
+Que gobierna sobre el ciclo de vida de las identidades digitales (personas, cuentas de servicio y dispositivos) y de los accesos que se les conceden.
 
 <b>IAM responde a cuatro preguntas muy importantes:</b>
 - Quién eres (autenticación).
@@ -85,31 +92,33 @@ Es decir:
 2. Y una vez autenticado, se establece qué se te permite. Autorización.
 
 Para establecer quién eres hay muchas formas y ninguna reemplaza a la otra porque cada uno tiene su caso de uso especial, ninguna es mejor que otra y a menudo se combinan. Para autenticarte:
-- Se prueba algo que sabes, algo que sólo tú sabes.
+- Se prueba algo que sabes, algo que solo tú sabes.
   - Una contraseña, un PIN, una respuesta a una pregunta.
-- Algo que sólo tú tienes, una posesión.
-  - Una llave, una tarjeta magnetica (banco), una tarjeta de proximidad (RFID), un token físico, un certificado digital, el móvil que te servirá como MFA o recibirá SMS o que gracias a él tiene una tarjeta SIM que te identifica.
+- Algo que solo tú tienes, una posesión.
+  - Una llave, una tarjeta magnética (banco), una tarjeta de proximidad (RFID), un token físico, un certificado digital, el móvil que te servirá como MFA o recibirá SMS o que gracias a él tiene una tarjeta SIM que te identifica.
 - Algo que eres.
   - La biometría, huella, retina, fisonomía, voz. Rasgos físicos inherentes.
 
-Para establecer qué puedes saber, es decir, para autorizarte: 
+Para establecer qué puedes hacer, es decir, para autorizarte: 
 - Primero debes autenticarte.
 
 Y ahora, se usan distintos modelos para saber qué puedes hacer:
 - Basado en roles (RBAC).
   - Es decir, se crea un rol "administrador" y es el rol "administrador" quien tiene los permisos.
-  - Y eres tú a quién se le asigna ese rol. Por lo tanto, heredas los permisos. 
+  - Y eres tú a quien se le asigna ese rol. Por lo tanto, heredas los permisos.
 - Basado en atributos (ABAC).
-  - La decisión depende del contexto, no solo quién eres, si no del departamento, la hora, el dispositivo, la red desde la que conectas o el importe de la operación.
+  - La decisión depende del contexto, no solo de quién eres, sino del departamento, la hora, el dispositivo, la red desde la que conectas o el importe de la operación.
 - Basado en listas de control de acceso (ACL).
-  - Es decir, que los permisos van puestos directamente en un recurso, este recurso guarda una lista de quién puede hacer sobre él. Como los permisos de un fichero.
+  - Es decir, que los permisos van puestos directamente en un recurso, y ese recurso guarda una lista de quién puede hacer qué sobre él. Como los permisos de un fichero.
 
 En la autorización es importante tener en cuenta:
 - El principio del mínimo privilegio, darle a cada identidad solo lo imprescindible para su función y nada más.
-- El principio de denegación por defecto. Además de eso, lo que no tiene permitido de forma explícita, se deniega.
-- Principio de mediación completa, es decir que cada intento de acceso se comprueba en el momento, sin dar por válida una decisión anterior.
+- El principio de denegación por defecto: lo que no está permitido de forma explícita, se deniega.
+- El principio de mediación completa, es decir, que cada intento de acceso se comprueba en el momento, sin dar por válida una decisión anterior.
 
-Por último, conviene distinguir dos cosas que se confunden: el permiso y la decisión.
+Los tres salen del mismo sitio, y me pareció curioso: son parte de los ocho principios de diseño de sistemas seguros que publicaron Saltzer y Schroeder en 1975 (least privilege, fail-safe defaults y complete mediation). El famoso "nunca confíes, verifica siempre" de la confianza cero es el tercero de ellos aplicado a la red, o sea que la idea tiene ya cincuenta años.
+
+Por último, hay dos cosas que se confunden mucho: el permiso y la decisión.
 
 - El permiso concedido (en el sector se le llama entitlement) es estático.
   - Alguien lo solicitó, alguien lo aprobó y queda guardado en un sistema. Se administra: se solicita, se aprueba, se revisa y se revoca.
@@ -120,9 +129,11 @@ Es decir, tener el permiso no garantiza obtener el acceso. Son dos momentos dist
 
 Un ejemplo físico lo deja claro. Tienes una tarjeta de acceso al edificio y estás dado de alta en la puerta principal: eso es el permiso, y sigue ahí aunque estés de vacaciones. Pasas la tarjeta a las tres de la madrugada y el torno te deniega el paso porque el horario de esa puerta es de 7 a 22: eso es la decisión.
 
-Y de ahí sale una consecuencia práctica que importa en IAM: una recertificación revisa permisos concedidos, mientras que un registro de accesos recoge decisiones. Un permiso que nadie ha usado nunca no aparece en ningún registro, y sigue siendo riesgo porque está ahí esperando.
+Esto tiene una consecuencia práctica en IAM: una recertificación revisa permisos concedidos, mientras que un registro de accesos recoge decisiones. Un permiso que nadie ha usado nunca no aparece en ningún registro, y sigue siendo un riesgo porque está ahí esperando.
 
 ## 2.3 Certificación y recertificación de accesos.
+
+Antes de nada, una aclaración para evitar confusiones: aquí "certificación" no tiene nada que ver con las certificaciones profesionales tipo CCNA o Security+. Comparten la palabra y nada más.
 
 La certificación de accesos, también llamada recertificación o revisión de accesos, es el proceso periódico en el que un responsable revisa los permisos que tienen asignadas las personas a su cargo y confirma, uno por uno, si siguen siendo necesarios.
 
@@ -130,11 +141,11 @@ Existe porque los permisos se acumulan. Cada cambio de puesto, cada proyecto y c
 
 Cómo funciona una campaña de recertificación:
 
-Se define el alcance. Qué aplicaciones, qué permisos y qué colectivo se revisan.
-Se asigna un revisor. Normalmente el responsable jerárquico de cada persona, o el propietario de la aplicación.
-El revisor decide sobre cada permiso: mantener o revocar.
-Lo revocado se ejecuta en los sistemas destino.
-Y queda la evidencia: quién revisó qué, cuándo y con qué resultado.
+- Se define el alcance. Qué aplicaciones, qué permisos y qué colectivo se revisan.
+- Se asigna un revisor. Normalmente el responsable jerárquico de cada persona, o el propietario de la aplicación.
+- El revisor decide sobre cada permiso: mantener o revocar.
+- Lo revocado se ejecuta en los sistemas destino.
+- Y queda la evidencia: quién revisó qué, cuándo y con qué resultado.
 
 La frecuencia depende de la criticidad. Lo habitual es anual o semestral para accesos normales, y bastante más seguido para los accesos privilegiados.
 
@@ -148,29 +159,29 @@ Un proveedor de identidad (IdP, Identity Provider) es el sistema que se encarga 
 
 La parte confiante es la aplicación que confía en esas afirmaciones en lugar de comprobar credenciales por su cuenta. Según el protocolo recibe un nombre u otro:
 
-En OpenID Connect se le llama parte confiante (relying party).
-En SAML se le llama proveedor de servicio (service provider).
+- En OpenID Connect se le llama parte confiante (relying party).
+- En SAML se le llama proveedor de servicio (service provider).
 
 Es decir, la aplicación deja de preguntar contraseñas y pasa a preguntar al proveedor de identidad quién eres.
 
-El valor del modelo está en concentrar el punto de verificación. Si veinte aplicaciones validan contraseñas por separado, hay veinte almacenes de credenciales que proteger, veinte políticas que mantener y veinte sitios donde olvidarse de cerrar un acceso. Delegando, hay uno solo. Y de ahí sale, como efecto, el inicio de sesión único (SSO): una vez autenticado ante el proveedor, el resto de aplicaciones aceptan esa autenticación sin volver a pedir credenciales.
+La gracia del modelo es que concentra el punto de verificación. Si veinte aplicaciones validan contraseñas por su cuenta, hay veinte almacenes de credenciales que proteger, veinte políticas que mantener y veinte sitios donde olvidarte de cerrar un acceso. Delegando, hay uno. Y como efecto secundario sale el inicio de sesión único (SSO): una vez autenticado ante el proveedor, el resto de aplicaciones aceptan esa autenticación sin volver a pedir nada.
 
 Esa confianza no es automática, se establece antes. La aplicación y el proveedor se configuran mutuamente (registro del cliente, metadatos, secretos o claves públicas de firma), y a partir de ahí la aplicación puede comprobar que la afirmación que recibe viene realmente del proveedor y no ha sido manipulada.
 
 En esta práctica los papeles son:
 
-Keycloak es el proveedor de identidad.
-La aplicación web y la API que protegeremos son las partes confiantes.
+- Keycloak es el proveedor de identidad.
+- La aplicación web y la API que protegeremos son las partes confiantes.
 
-## 2.5  OAuth 2.0: delegacion de autorizacion
+## 2.5  OAuth 2.0: delegación de autorización
 
 ## 2.6  OpenID Connect: la capa de identidad
 
-## 2.7  Keycloak: la implementacion concreta
+## 2.7  Keycloak: la implementación concreta
 
 ## 2.8  Vocabulario propio de Keycloak
 
-## 2.9  Que es una API y que significa REST
+## 2.9  Qué es una API y qué significa REST
 
 Una API (Application Programming Interface) es la cara pública de un programa: el conjunto de operaciones y funciones que declara al exterior, qué datos hay que enviarle en cada una y qué devuelve.
 
@@ -180,11 +191,11 @@ Una API no es solo vía web, ni todo es HTTP ni JSON. Una biblioteca de C tiene 
 
 ## 2.10  Tokens: concepto, tipos y estructura JWT
 
-## 2.11 Los tres tipos tokens y sus funciones
+## 2.11 Los tres tipos de tokens y sus funciones
 
-## 2.12 Flujos de concesion utilizados
+## 2.12 Flujos de concesión utilizados
 
-## 2.13 Endpoints del servidor de autorizacion
+## 2.13 Endpoints del servidor de autorización
 
 ## 2.14 Herramientas: curl y Postman
 
@@ -192,7 +203,9 @@ Una API no es solo vía web, ni todo es HTTP ni JSON. Una biblioteca de C tiene 
 
 # 3.0 Procedimientos.
 
-Para ello, en mi Windows no tengo el docker instalado y ni pienso instalarlo. Voy directamente con WSL, vamos a ver que máquinas tenemos:
+## 3.1. PREPARACIÓN DEL ENTORNO
+
+En mi Windows no tengo Docker instalado y ni pienso instalarlo. Voy directamente con WSL, vamos a ver que máquinas tenemos:
 
 ```
 wsl -l -v
@@ -220,11 +233,11 @@ Descargando: Debian GNU/Linux
 [==========================70,2%=========                  ]
 </pre>
 
-Estás en /mnt/c/Users/User porque abriste WSL desde esa carpeta en PowerShell y te dejó en su equivalente dentro de Linux. Eso que ves montado en /mnt/c es tu disco C: de Windows, accesible desde Linux como si fuera una carpeta más. Por eso tu home de Linux y la carpeta de usuario de Windows son dos sitios distintos.
+Si abro WSL desde una carpeta de PowerShell, me deja en su equivalente dentro de Linux, que suele ser algo como /mnt/c/Users/User. Eso que veo montado en /mnt/c es mi disco C: de Windows, accesible desde Linux como si fuera una carpeta más. Por eso el home de Linux y la carpeta de usuario de Windows son dos sitios distintos, y para irme al mío uso `cd ~`.
 
 Sobre si es una máquina virtual: sí, pero no del tipo que tienes en la cabeza. WSL2 ejecuta un núcleo Linux real dentro de una máquina virtual ligera sobre Hyper-V. La diferencia con VirtualBox o VMware es que está muy integrada: arranca en un par de segundos, comparte el localhost con Windows y te monta los discos de Windows automáticamente. No es una emulación ni una capa de traducción, es Linux de verdad, solo que con las costuras muy disimuladas.
 
-Y un consejo que importa para lo que vas a hacer: trabaja siempre dentro de /home/user, no en /mnt/c. El acceso a los ficheros de Windows desde Linux pasa por una capa de traducción y es bastante más lento. Con Docker, clonando repositorios o compilando, la diferencia se nota mucho. Deja /mnt/c solo para cuando necesites mover un fichero entre los dos mundos.
+Un detalle que importa: yo trabajo siempre dentro de /home/user, no en /mnt/c. El acceso a los ficheros de Windows desde Linux pasa por una capa de traducción y va bastante más lento. Con Docker, clonando repositorios o compilando, se nota mucho. /mnt/c lo dejo solo para mover ficheros de un lado a otro.
 
 <pre>
 user@Usuario:/mnt/c/Users/User$ pwd
@@ -318,9 +331,9 @@ Las típicas del desplegable:
 
 Para qué sirven en la realidad: es el mecanismo de alta de empleados. Recursos Humanos crea la cuenta con una contraseña provisional y marca Update Password, así el administrador nunca conoce la contraseña definitiva. O la organización decide implantar MFA y marca Configure OTP a toda la plantilla, de modo que cada uno lo configura la primera vez que entra, sin que nadie tenga que perseguirlos.
 
-Fíjate en el detalle interesante: es una obligación que viaja con la identidad, no con la aplicación. Da igual desde qué aplicación intente entrar, la acción le salta igual, porque quien la impone es el proveedor de identidad.
+Lo interesante es que la obligación viaja con la identidad, no con la aplicación. Da igual desde dónde intente entrar el usuario, la acción le salta igual, porque quien la impone es el proveedor de identidad.
 
-En tu caso, déjalo vacío. Si marcas cualquiera, cuando llegues al flujo con Postman el navegador te va a interrumpir pidiendo esa tarea y te va a romper el ejercicio. Lo mismo que la contraseña temporal, que desactivarás en la pestaña Credentials.
+Yo lo dejo vacío. Si marco cualquiera, cuando llegue al flujo con Postman el navegador me va a interrumpir pidiendo esa tarea y me rompe el ejercicio. Lo mismo con la contraseña temporal, que la desactivo en la pestaña Credentials.
 
 <img width="942" height="483" alt="imagen" src="https://github.com/user-attachments/assets/17d2d022-497c-4b18-8457-d37354212dac" />
 
@@ -330,9 +343,8 @@ Y aceptamos y lo creamos. Como nos habremos dado cuenta, el estilo de la interfa
 
 
 > [!IMPORTANT]
-> El usuario se ha creado a mano. Eliminar exactamente ese trabajo<br>
-> manual es la razon de existir de SCIM, que es el objeto<br>
-> de una practica posterior.
+> El usuario se ha creado a mano, campo por campo. Eliminar exactamente ese trabajo<br>
+> manual es la razón de existir de SCIM, que es el objeto de una práctica posterior.
 >
 
 Vamos además a añadirle una contraseña, más que nada porque sin contraseña no podrá autenticarse y el usuario por lo tanto es inservible literalmente:
@@ -351,8 +363,8 @@ Un cliente no es una persona ni un usuario. Es una aplicación registrada que ti
 
 La diferencia está en una sola pregunta: <b>¿esta aplicación puede guardar un secreto sin que nadie lo vea?</b>
 
-Un cliente público no puede. Vive en un navegador o en un móvil, su código es inspeccionable por el usuario, y cualquier contraseña que metieras dentro estaría a la vista. Por eso se autentica sin secreto y necesita protecciones adicionales como PKCE.
-Un cliente confidencial sí puede. Corre en un servidor que tú controlas, nadie puede leer su configuración, y por tanto se le puede entregar un secreto. Ese secreto es su credencial: es lo que prueba que la petición viene de él y no de un impostor.
+- Un cliente público no puede. Vive en un navegador o en un móvil, su código es inspeccionable por el usuario, y cualquier contraseña que metiéramos dentro estaría a la vista. Por eso se autentica sin secreto y necesita protecciones adicionales como PKCE.
+- Un cliente confidencial sí puede. Corre en un servidor controlado, nadie puede leer su configuración, y por tanto se le puede entregar un secreto. Ese secreto es su credencial: es lo que prueba que la petición viene de él y no de un impostor.
 
 <p><b>El flujo de credenciales de cliente</b></p>
 
@@ -360,25 +372,25 @@ Es el flujo más simple de OAuth porque elimina a la persona de la ecuación. El
 
 <p><b>Comparado con el flujo con usuario, aquí desaparecen tres cosas:</b></p>
 
-No hay navegador, porque no hay nadie a quien mostrarle una pantalla de acceso.
-No hay consentimiento, porque nadie está delegando el acceso a sus datos. El programa actúa por sí mismo, no en nombre de otro.
-No hay refresh token, porque no hace falta. El cliente conserva su secreto y puede pedir un token nuevo cuando quiera, sin molestar a nadie.
+- No hay navegador, porque no hay nadie a quien mostrarle una pantalla de acceso.
+- No hay consentimiento, porque nadie está delegando el acceso a sus datos. El programa actúa por sí mismo, no en nombre de otro.
+- No hay refresh token, porque no hace falta. El cliente conserva su secreto y puede pedir un token nuevo cuando quiera, sin molestar a nadie.
 
 <p><b>Dónde se usa esto de verdad</b></p>
 
-Un proceso nocturno que consolida datos y llama a varias APIs internas.
-Un microservicio que llama a otro microservicio.
-Un conector de aprovisionamiento que crea y borra cuentas en una aplicación destino. Este es tu caso en la práctica siguiente: el motor que empuja identidades por SCIM se autentica exactamente así.
+- Un proceso nocturno que consolida datos y llama a varias APIs internas.
+- Un microservicio que llama a otro microservicio.
+- Un conector de aprovisionamiento que crea y borra cuentas en una aplicación destino. Es el caso de la práctica siguiente: el motor que empuja identidades por SCIM se autentica exactamente así.
 
 <p><b>La cuenta de servicio</b></p>
 
-Aquí viene un detalle propio de Keycloak que conviene entender. Un token tiene que hablar de alguien, necesita un sujeto. Como aquí no hay persona, Keycloak crea internamente un usuario que representa al propio cliente: la cuenta de servicio (service account).
+Aquí hay un detalle propio de Keycloak. Un token tiene que hablar de alguien, necesita un sujeto. Como en este flujo no hay persona, Keycloak se crea por dentro un usuario que representa al propio cliente: la cuenta de servicio (service account).
 
-Eso no es un capricho de implementación, resuelve un problema real: gracias a esa cuenta puedes asignarle roles al programa, igual que se los asignarías a una persona. Y de ahí sale una idea que en IAM corporativo pesa mucho: las aplicaciones también son identidades, y también hay que gobernarlas. Tienen permisos, se acumulan, caducan y hay que recertificarlas. En un banco suele haber más cuentas de servicio que empleados, y son las que peor se controlan.
+No es un capricho, resuelve un problema real: gracias a esa cuenta se le pueden asignar roles al programa igual que a una persona. Y de aquí sale una idea que en IAM corporativo pesa mucho, y es que las aplicaciones también son identidades y también hay que gobernarlas. Tienen permisos, se acumulan, caducan y hay que recertificarlas. En un banco suele haber más cuentas de servicio que empleados, y son justo las que peor se controlan.
 
-<p><b>Y una consecuencia de seguridad que conviene documentar</b></p>
+<p><b>Y una consecuencia de seguridad importante</b></p>
 
-El secreto del cliente es una credencial de larga duración que no caduca sola. Quien lo tenga puede obtener tokens indefinidamente hasta que alguien lo rote. Por eso no se escribe en el código ni se sube a un repositorio, y por eso existen las bóvedas de secretos. Cuando en tu .gitignore excluyas el .env, es literalmente esto lo que estás protegiendo.
+El secreto del cliente es una credencial de larga duración que no caduca sola. Quien lo tenga puede obtener tokens indefinidamente hasta que alguien lo rote. Por eso no se escribe en el código ni se sube a un repositorio, y por eso existen las bóvedas de secretos. Cuando en el .gitignore se excluye el fichero .env, es literalmente esto lo que se está protegiendo.
 
 Entonces, vamos a crear el cliente. Muy importante, que estemos en el realm adecuado.
 
@@ -394,13 +406,13 @@ y nos vamos a clients.
 
 Es el protocolo que va a hablar esa aplicación con Keycloak. Solo hay dos opciones y son excluyentes: un cliente habla OIDC o habla SAML, no los dos.
 
-OpenID Connect es el moderno, construido sobre OAuth 2.0. Intercambia tokens JWT, funciona por peticiones HTTP con JSON, y es lo que usan las aplicaciones web actuales, las móviles y las APIs. Es lo que vas a practicar.
+OpenID Connect es el moderno, construido sobre OAuth 2.0. Intercambia tokens JWT, funciona por peticiones HTTP con JSON, y es lo que usan las aplicaciones web actuales, las móviles y las APIs. Es el que usamos aquí.
 
 SAML 2.0 es anterior, de principios de los 2000. Intercambia aserciones en XML firmado y el navegador las transporta mediante formularios que se autoenvían. Se diseñó pensando en el inicio de sesión único entre organizaciones, no en APIs.
 
 SAML no está muerto ni de lejos: en banca, administración pública y universidades hay muchísimas aplicaciones que solo hablan SAML, y una plataforma de IAM tiene que sostener ambos. Por eso Keycloak los ofrece.
 
-La diferencia práctica que te importa ahora: con SAML no hay access token que enviar a una API. El resultado del flujo es una aserción que establece una sesión en la aplicación. Para proteger una API, que es lo que vas a hacer, SAML no sirve.
+La diferencia práctica más relevante aquí: con SAML no hay access token que enviar a una API. El resultado del flujo es una aserción que establece una sesión en la aplicación. Para proteger una API, SAML no sirve.
 
 <p><b>El client ID es:</b></p>
 
@@ -408,15 +420,12 @@ Es el identificador público de la aplicación. El nombre con el que esa aplicac
 
 La analogía directa: si comparas un cliente con una cuenta de usuario, el client_id es el nombre de usuario y el client_secret es la contraseña. Uno identifica, el otro demuestra.
 
-Tres cosas que conviene tener claras:
+Tres cosas a tener claras:
+- No es secreto. Viaja en cada petición, aparece en las URL del navegador cuando el flujo es interactivo y cualquiera puede verlo. No pasa nada, porque identificar no es autenticar. Lo que hay que proteger es el secreto.
+- Es único dentro del realm. No puede haber dos clientes con el mismo client_id en lab-iam, aunque sí podría existir uno igual en otro realm, porque son mundos separados.
+- Es lo que se escribe en cada petición de token. Más adelante, al lanzar el curl, aparecerá el parámetro client_id=api-backend. Con eso Keycloak sabe qué aplicación está pidiendo, qué flujos tiene permitidos y qué debe meter en el token.
 
-No es secreto. Viaja en cada petición, aparece en las URL del navegador cuando el flujo es interactivo y cualquiera puede verlo. No pasa nada, porque identificar no es autenticar. Lo que hay que proteger es el secreto.
-
-Es único dentro del realm. No puede haber dos clientes con el mismo client_id en lab-iam, aunque sí podría existir uno igual en otro realm, porque son mundos separados.
-
-Es lo que vas a escribir en cada petición de token. Cuando dentro de un rato lances el curl, verás el parámetro client_id=api-backend. Con eso Keycloak sabe qué aplicación está pidiendo, qué flujos tiene permitidos y qué debe meter en el token.
-
-Y una consecuencia práctica: cambiarlo después rompe todas las integraciones que ya lo usan, porque es la referencia que tienen configurada. Por eso se elige con cabeza y no se toca.
+Y cambiarlo después rompe todas las integraciones que ya lo usan, porque es la referencia que tienen configurada.
 
 <img width="1142" height="772" alt="imagen" src="https://github.com/user-attachments/assets/83ac1052-2507-4caf-8034-2257018fdf37" />
 
@@ -441,7 +450,7 @@ Ahora, qué es cada cosa:
 
 <img width="1020" height="852" alt="imagen" src="https://github.com/user-attachments/assets/f419e0d6-472c-4f8a-bb14-daee714e300a" />
 
-Fíjate en un detalle que confirma que lo has configurado bien: aquí solo salen Root URL y Home URL. No aparecen las Valid redirect URIs ni los Web origins, porque al desmarcar Standard flow le has dicho a Keycloak que este cliente nunca va a pasar por un navegador, y sin navegador no hay retorno que autorizar.
+Un detalle que me confirma que lo he configurado bien: aquí solo salen Root URL y Home URL. No aparecen las Valid redirect URIs ni los Web origins, y es porque al desmarcar Standard flow le he dicho a Keycloak que este cliente nunca va a pasar por un navegador. Sin navegador no hay retorno que autorizar.
 
 Qué son esos dos campos, por si te los encuentras en el siguiente cliente:
 
@@ -453,6 +462,12 @@ Ambos son comodidades de configuración, no tienen efecto de seguridad. Los que 
 Y lo creamos:
 
 <img width="1356" height="862" alt="imagen" src="https://github.com/user-attachments/assets/77e6cea3-2d0d-4519-8783-26875e4428b6" />
+
+Antes de pedir el primer token le voy a añadir al cliente un mapeador de audiencia. Esto no lo tenía previsto, lo puse después de pegarme un rato con un fallo, y lo dejo aquí en su sitio para que no le pase a nadie más.
+
+Por defecto, el token que emite Keycloak para este cliente lleva `"aud": "account"`, o sea que va dirigido al cliente interno de gestión de cuenta y no a mi API. Y resulta que desde la versión 26.6.2 el endpoint de introspección comprueba que el cliente que pregunta esté dentro de la audiencia del token, como arreglo de una vulnerabilidad (CVE-2026-37979). Así que sin este mapeador, al introspeccionar mi propio token la respuesta es `{"active": false}`, aunque el token sea perfectamente válido. Me volví loco un rato hasta dar con esto.
+
+Visto con calma es razonable: si cualquier cliente pudiera introspeccionar cualquier token, bastaría con darse de alta un cliente cualquiera para andar espiando tokens ajenos.
 
 Nos dirigimos al apartado "Client scopes":
 
@@ -473,10 +488,10 @@ Ahora nos vamos al apartado de credenciales:
 <p><b>Y copiamos el client secret.</b></p>
 
 ¿Qué es? Es la credencial de la aplicación. Sin él, Keycloak no tiene forma de saber que quien pide el token es realmente api-backend.
-- Piénsalo así: el client_id es público y aparece en cualquier sitio. Si bastara con enviarlo, cualquiera que lo supiera podría pedir tokens haciéndose pasar por tu proceso, y con esos tokens entrar a tu API. El secreto es lo que convierte "digo que soy api-backend" en "demuestro que soy api-backend".
-- Y en este flujo concreto tiene un peso especial, porque es la única credencial que hay. En el flujo con persona, la seguridad se apoya en la contraseña del usuario y en todo el proceso del navegador. Aquí no hay nada de eso: el secreto es lo único que separa a tu proceso de cualquier otro. Por eso este flujo solo se permite a clientes confidenciales, que son los que pueden custodiarlo.
+- Piénsalo así: el client_id es público y aparece en cualquier sitio. Si bastara con enviarlo, cualquiera que lo supiera podría pedir tokens haciéndose pasar por mi proceso, y con esos tokens entrar a mi API. El secreto es lo que convierte "digo que soy api-backend" en "demuestro que soy api-backend".
+- Y en este flujo concreto tiene un peso especial, porque es la única credencial que hay. En el flujo con persona, la seguridad se apoya en la contraseña del usuario y en todo el proceso del navegador. Aquí no hay nada de eso: el secreto es lo único que separa a mi proceso de cualquier otro. Por eso este flujo solo se permite a clientes confidenciales, que son los que pueden custodiarlo.
 
-De ahí sale lo que ya comentamos y que conviene que quede escrito en tu README: ese valor no se escribe en el código, no se sube al repositorio y se guarda en una variable de entorno o en una bóveda de secretos. Tiene el mismo valor que una contraseña, con el agravante de que no caduca sola y suele estar en manos de varios equipos.
+De aquí sale una regla práctica: ese valor no se escribe en el código ni se sube al repositorio, se guarda en una variable de entorno o en una bóveda de secretos. Vale lo mismo que una contraseña, con el agravante de que no caduca sola y suele estar en manos de varios equipos.
 
 Ahora nos volvemos al WSL e instalaremos el "jq" que es un procesador de JSON para la CLI
 
@@ -514,12 +529,12 @@ Y así es como se vería:
 
 <img width="708" height="465" alt="imagen" src="https://github.com/user-attachments/assets/51a89e18-1ab1-4136-bf67-0b6a7f61e1eb" />
 
-Funciona. Y confirma tres cosas que te anticipé, que conviene que veas escritas:
-- No hay refresh_token. Fíjate además en refresh_expires_in: 0. Keycloak te está diciendo explícitamente que no emite uno, porque en este flujo no hace falta: el cliente tiene el secreto y puede pedir otro cuando quiera.
-- `expires_in: 300`, cinco minutos. Ese es el valor por defecto del realm y es el que vas a bajar a un minuto más adelante para ver la caducidad en directo.
-- `scope: "email profile"`, sin openid. Por eso este token no es OIDC, es OAuth puro. Y por eso, cuando pruebes el endpoint /userinfo con él, es probable que te lo rechace.
+Funciona, y confirma tres cosas:
+- No hay refresh_token. Y además `refresh_expires_in: 0`, o sea que Keycloak lo dice de forma explícita. En este flujo no hace falta: el cliente tiene el secreto y puede pedir otro token cuando quiera.
+- `expires_in: 300`, cinco minutos. Ese es el valor por defecto del realm, y más adelante lo bajaremos a un minuto para ver la caducidad en directo.
+- `scope: "email profile"`, sin openid. Por eso este token no es OIDC, es OAuth puro. Y por eso, al probar el endpoint /userinfo con él, lo rechaza. Lo comprobamos más abajo.
 
-Ahora decodifica el cuerpo tú mismo, es decir, vamos a copiar ese "churro" de texto:
+Ahora vamos a decodificar el cuerpo del token, copiando ese "churro" de texto:
 
 ```
 echo 'PEGA_AQUI_EL_TOKEN' | cut -d. -f2 | base64 -d 2>/dev/null | jq
@@ -534,12 +549,12 @@ echo 'PEGA_AQUI_EL_TOKEN' | cut -d. -f2 | base64 -d 2>/dev/null | jq
 Ambos van en segundos desde el 1 de enero de 1970, que es el formato epoch de Unix. Se usa así porque es un entero sin zonas horarias ni ambigüedades de formato: cualquier sistema del mundo lo interpreta igual.
 
 Quien valida el token compara exp con su propio reloj. De ahí un problema clásico en producción: si los relojes de dos servidores van desincronizados, uno puede rechazar tokens que el otro acaba de emitir. Por eso en entornos serios se sincroniza la hora por NTP y los validadores admiten un margen de tolerancia de unos segundos.
-- `jti` (JWT ID): identificador único de este token concreto. Sirve para detectar reutilizaciones, para mantener listas de revocación y, sobre todo, para correlacionar en auditoría: si en el registro de tu API aparece una operación sospechosa con ese jti, puedes cruzarlo con el registro de emisión de Keycloak y saber exactamente quién y cuándo lo pidió. El prefijo trrtcc: es algo interno de Keycloak y no sé con certeza qué significa, no te lo voy a inventar.
+- `jti` (JWT ID): identificador único de este token concreto. Sirve para detectar reutilizaciones, para mantener listas de revocación y, sobre todo, para correlacionar en auditoría: si en el registro de mi API apareciera una operación sospechosa con ese jti, podría cruzarlo con el registro de emisión de Keycloak y saber exactamente quién y cuándo lo pidió. El prefijo trrtcc: es algo interno de Keycloak, y no he encontrado documentación que confirme su significado, así que lo dejo señalado como pendiente en lugar de suponerlo.
 
 <p><b>Quién y para quién</b></p>
 
-- `iss` (issuer): http://localhost:8080/realms/lab-iam. Quién emitió el token. Tu API tendrá que comprobar que este valor coincide exactamente con el emisor que espera. Y ojo con esto, porque te va a morder más adelante: si montas la API dentro de otro contenedor, para ella localhost no es Keycloak, es ella misma. Ese desajuste entre la URL pública del emisor y la interna es uno de los errores más frecuentes al desplegar.
-- `aud` (audience): account. Para quién está pensado el token. Aquí no aparece tu API, aparece el cliente interno de gestión de cuenta de Keycloak, porque es el único destinatario que el realm sabe añadir por defecto.
+- `iss` (issuer): http://localhost:8080/realms/lab-iam. Quién emitió el token. Una API tiene que comprobar que este valor coincide exactamente con el emisor que espera. Y aquí hay una trampa que veo venir para más adelante: si la API corre dentro de otro contenedor, para ella localhost no es Keycloak, es ella misma. Ese desajuste entre la URL pública y la interna rompe la validación, y por lo que he leído es de los fallos más típicos al desplegar.
+- `aud` (audience): account. Para quién está pensado el token. Aquí no aparece mi API, aparece el cliente interno de gestión de cuenta de Keycloak, porque es el único destinatario que el realm sabe añadir por defecto.
 
 La consecuencia práctica: una API que valide la audiencia con rigor rechazaría este token, y haría bien. Un token emitido para un destinatario no debería servir en otro, porque si no, cualquier servicio que reciba tu token puede darse la vuelta y usarlo contra un tercero haciéndose pasar por ti. Se corrige añadiendo un mapeador de audiencia al cliente o al ámbito.
 
@@ -549,7 +564,7 @@ La consecuencia práctica: una API que valide la audiencia con rigor rechazaría
 
 <p><b>Autenticación y autorización</b></p>
 
-- `acr` (authentication context class reference): 1. Indica con qué nivel de garantía se autenticó el sujeto. Se usa para políticas del tipo "para transferir más de mil euros exijo que te hayas autenticado con doble factor en los últimos cinco minutos". Aquí es un valor básico, porque no hubo persona ni segundo factor.
+- `acr` (authentication context class reference): 1. Indica con qué nivel de garantía se autenticó el sujeto. Se usa para políticas del tipo "para transferir más de mil euros exijo que te hayas autenticado con doble factor en los últimos cinco minutos". Más adelante veremos que en el flujo con persona este valor cambia según se haya autenticado de nuevo o se reutilice una sesión existente.
 - `realm_access.roles`: los roles de realm que trae el sujeto. Los tres que ves son de serie:
   - default-roles-lab-iam es un rol compuesto que Keycloak asigna automáticamente a todo el mundo y que agrupa los permisos mínimos.
   - offline_access permite solicitar tokens de sesión desconectada, los que sobreviven a que el usuario cierre el navegador.
@@ -557,7 +572,7 @@ La consecuencia práctica: una API que valide la audiencia con rigor rechazaría
 
 - resource_access.account.roles: roles sobre un cliente concreto, en este caso sobre account. Le permiten ver y gestionar su propio perfil.
 
-Ahí tienes la diferencia entre los dos planos: los roles de realm valen en todo el realm, los de cliente solo tienen sentido dentro de una aplicación. Un mismo usuario puede ser "lector" en una aplicación y "administrador" en otra sin colisión, porque cada rol vive en su cliente.
+Ahí se ve la diferencia entre los dos planos: los roles de realm valen en todo el realm, y los de cliente solo dentro de una aplicación. Un mismo usuario puede ser "lector" en una aplicación y "administrador" en otra sin que choquen, porque cada rol vive en su cliente.
 
 - scope: email profile. Los ámbitos concedidos. Falta openid, y por eso este token no activa el comportamiento OIDC.
 
@@ -565,7 +580,7 @@ Ahí tienes la diferencia entre los dos planos: los roles de realm valen en todo
 - `clientHost` y `clientAddress`: `172.17.0.1`, la dirección desde la que se hizo la petición vista desde dentro del contenedor. Esa IP es la pasarela de la red de Docker, o sea tu WSL visto desde Keycloak. Es información de auditoría.
 - `email_verified: false` y `preferred_username: service-account-api-backend`: vienen del perfil de la cuenta de servicio que Keycloak creó sola. El correo verificado aquí no significa nada, porque esta identidad no tiene correo.
 
-## 3.4. LEER EL TOKEN POR DENTRO
+## 3.4. INTROSPECCIÓN Y ENDPOINTS DEL REALM
 
 Siguiente paso: la introspección, que es preguntarle al servidor si ese token sigue vivo.
 
@@ -591,21 +606,32 @@ curl -s -X POST http://localhost:8080/realms/lab-iam/protocol/openid-connect/tok
   -d token=$AT | jq
 ```
 
-El -u es autenticación HTTP básica: manda usuario y contraseña en una cabecera. Aquí el usuario es el client_id y la contraseña el secreto. Fíjate en el detalle: para preguntar por un token también hay que estar autenticado. Keycloak no le cuenta a cualquiera qué contiene un token ajeno.
+El -u es autenticación HTTP básica: manda usuario y contraseña en una cabecera. Aquí el usuario es el client_id y la contraseña el secreto. Detalle que no me esperaba: para preguntar por un token también hay que estar autenticado. Keycloak no le cuenta a cualquiera qué lleva dentro un token ajeno.
+
+Con un token recién pedido, la respuesta es `"active": true` seguida de las mismas afirmaciones que ya habíamos decodificado.
 
 <img width="922" height="205" alt="imagen" src="https://github.com/user-attachments/assets/e5471001-780f-42c9-a37e-6fba012566fb" />
 
-En mi caso devuelve false, porque han pasado más de 5 minutos con el token desde que lo pedí y ha caducado.
+En mi primera prueba me devolvió false, porque habían pasado más de cinco minutos desde que pedí el token y ya se me había caducado. Lo curioso es que el token seguía siendo perfectamente legible al decodificarlo, pero el servidor ya no lo aceptaba.
 
-Deberías ver "active": true y, a continuación, las mismas afirmaciones que ya decodificaste.
+Aquí hay dos formas de validar un token y merecen una comparación:
+
+- **Validación local**: rápida y sin depender del proveedor en cada petición, pero no detecta una revocación hasta que el token caduca por su cuenta.
+- **Introspección**: detecta la revocación al instante, pero añade una llamada de red y acopla el servicio al proveedor.
+
+En banca conviven las dos. La elección depende de cuánto duelen los milisegundos frente a cuánto duele un token revocado que sigue siendo aceptado.
 
 <img width="720" height="952" alt="imagen" src="https://github.com/user-attachments/assets/4cc7ebf0-c003-4cda-81d7-c95512ddb00b" />
 
-Cuando lo tengas, dos pruebas más que cierran este bloque:
+Dos consultas más cierran este bloque. La primera devuelve las claves públicas del realm:
 
 ```
 curl -s http://localhost:8080/realms/lab-iam/protocol/openid-connect/certs | jq
 ```
+
+Lo primero que hice fue comparar el `kid` de la clave de firma con el `kid` de la cabecera de mi token, y coinciden. Ahí se cierra el círculo: la cabecera del token dice con qué clave se firmó, y este endpoint publica esa clave para que cualquiera lo compruebe sin preguntarle nada a Keycloak.
+
+Aparecen dos claves con funciones distintas: una con `"use": "sig"` y algoritmo RS256, que es la que firma, y otra con `"use": "enc"`, que sirve para cifrar tokens cuando se configura esa opción. Los campos `n` y `e` son el módulo y el exponente de la clave pública RSA. Nada de esto es secreto, por eso se publica en abierto.
 
 En mi caso devuelve esto:
 
@@ -643,9 +669,19 @@ En mi caso devuelve esto:
 </pre>
 
 
+La segunda es el documento de descubrimiento, que es el mapa completo del realm y el punto de partida correcto para integrarse con cualquier proveedor de identidad ajeno:
+
 ```
 curl -s http://localhost:8080/realms/lab-iam/.well-known/openid-configuration | jq
 ```
+
+De toda esa parrafada me quedo con cinco cosas:
+
+- `grant_types_supported` lista todos los flujos que el realm sabe hacer, incluidos `implicit` y `password`. Cuidado con leerlo mal: eso es lo que admite el realm, no lo que cada cliente tiene permitido. En `api-backend` esos flujos los dejé cerrados.
+- `code_challenge_methods_supported` con `S256` confirma que PKCE está disponible, cosa que necesitaremos en el siguiente bloque.
+- `scopes_supported` incluye `openid`, que es justo el ámbito que le falta a nuestro token actual.
+- `revocation_endpoint` y `end_session_endpoint` son URL distintas: revocar un token concreto y cerrar sesión no son lo mismo.
+- `dpop_signing_alg_values_supported` indica que el realm admite DPoP, el mecanismo que ata un token a una clave y que aparecía como interruptor al crear el cliente.
 
 <pre>
 {
@@ -997,13 +1033,13 @@ curl -s http://localhost:8080/realms/lab-iam/protocol/openid-connect/userinfo \
   -H "Authorization: Bearer $AT" | jq
 ```
 
-Y este último no nos devolverá nada.
+Y esta última llamada no nos devolverá nada.
 
 Keycloak, en este endpoint, no manda un JSON de error. Pone toda la información en el código de estado y en la cabecera WWW-Authenticate. Así que jq recibe cero bytes, no tiene nada que formatear y no imprime nada. No es un fallo, es que estás mirando el sitio equivocado.
 
 Por eso hace falta -i, que muestra las cabeceras además del cuerpo.
 
-Y de ahí sale una lección práctica que conviene que quede en el README: no todas las APIs informan de los errores igual. Unas devuelven un JSON con el detalle, otras lo ponen en cabeceras, otras solo dejan el código de estado. Cuando algo "no devuelve nada", lo primero es mirar con -i antes de concluir que está roto.
+La lección que me llevo: no todas las APIs informan de los errores igual. Unas devuelven un JSON con el detalle, otras lo meten en cabeceras y otras solo dejan el código de estado. Cuando algo "no devuelve nada", lo primero es mirar con -i antes de dar por hecho que está roto.
 
 Este otro comando (añadiendo el -i y quitando el jq), nos mostrará la cabecera:
 
@@ -1025,9 +1061,13 @@ X-Content-Type-Options: nosniff
 X-Robots-Tag: none
 </pre>
 
-### 3.4.1 Breve experimento
+Aquí tengo la diferencia entre 401 y 403 en vivo, que es justo lo que quería ver. Cuando el token es inválido o ha caducado, sale un **401** con `invalid_token`: el servidor no puede establecer quién soy, así que ni llega a plantearse qué permitirme. Cuando el token es válido pero le falta el ámbito, sale un **403** con `insufficient_scope`: sabe perfectamente quién soy, y justo por eso puede denegarme.
 
-Experimentos que en ambos casos nos deben rechazar:
+Ese formato de respuesta lo define el RFC 6750, y no es un adorno: permite que un cliente reaccione distinto según el motivo. Ante `invalid_token` pide uno nuevo, y ante `insufficient_scope` ya sabe que pedir otro igual no le va a servir y que lo que tiene que cambiar son los ámbitos.
+
+### 3.4.1 Provocar los fallos: caducidad y firma
+
+Dos experimentos que en ambos casos nos deben rechazar:
 
 #### 3.4.1.1 Experimento 1: la caducidad.
 
@@ -1053,13 +1093,13 @@ Debe salir {"active": false} y nada más.
 
 <img width="1045" height="175" alt="imagen" src="https://github.com/user-attachments/assets/3fa11b3e-a1c1-4628-a8dd-7c9c5c6a7264" />
 
-Fíjate en el detalle: cuando el token no es válido, la introspección no te cuenta nada de él. No dice que caducó, ni de quién era. Eso es deliberado: si diera detalles, serviría para sonsacar información sobre tokens ajenos.
+Detalle que me llamó la atención: cuando el token no es válido, la introspección no cuenta absolutamente nada de él. No dice que caducó, ni de quién era. Y es a propósito, porque si diera detalles serviría para sonsacar información sobre tokens ajenos.
 
-Y el contraste que quieres documentar: decodifica ese mismo token caducado y verás que sus datos siguen perfectamente legibles. El token no se destruye ni se borra, simplemente deja de ser aceptado.
+El contraste está en que si decodifico ese mismo token caducado, sus datos siguen ahí perfectamente legibles. El token no se destruye ni se borra, simplemente deja de ser aceptado.
 
 #### 3.4.1.2 Experimento 2: la firma manipulada.
 
-Aquí vamos a modificar el contenido del token conservando la firma original, que es exactamente lo que intentaría un atacante para, por ejemplo, darse roles que no tiene.
+Aquí voy a modificar el contenido del token dejando la firma original, que es lo que intentaría un atacante para, por ejemplo, darse roles que no tiene.
 
 ```
 H=$(echo $AT | cut -d. -f1)
@@ -1096,9 +1136,9 @@ curl -i -s http://localhost:8080/realms/lab-iam/protocol/openid-connect/userinfo
 
 <img width="1362" height="452" alt="imagen" src="https://github.com/user-attachments/assets/78dea3c2-c1ba-4bc1-9674-3afcec0e9624" />
 
-El contenido de un JWT es manipulable por cualquiera, porque base64 no protege nada. Lo que no se puede falsificar es la firma, porque haría falta la clave privada del realm, que nunca sale de Keycloak. De ahí la regla: nunca confíes en un JWT que no hayas verificado, aunque lo que pone dentro te parezca razonable.
+Lo que saco de aquí: el contenido de un JWT lo puede cambiar cualquiera, porque base64 es codificación y no cifrado. Lo que no se puede falsificar es la firma, porque haría falta la clave privada del realm y esa no sale de Keycloak. La regla entonces es no fiarse nunca de un JWT sin verificar, por muy razonable que parezca lo que pone dentro.
 
-## 3.6. CLIENTE PUBLICO CON PKCE DESDE POSTMAN
+## 3.5. CLIENTE PÚBLICO CON PKCE DESDE POSTMAN
 
 Vamos a crear un segundo cliente, `spa-web`.
 
@@ -1127,9 +1167,16 @@ Es el nombre que le vamos a poner al segundo cliente, el público. spa viene de 
 
 Es el caso típico de cliente público: su código se descarga al navegador del usuario, cualquiera puede abrir las herramientas de desarrollo y leerlo, así que no puede guardar ningún secreto. De ahí que necesite PKCE.
 
-El nombre es arbitrario, lo elegí yo para que se entienda de un vistazo qué representa cada cliente:
+PKCE (RFC 7636) funciona así: el cliente se inventa un valor aleatorio, manda su resumen SHA-256 al pedir el código de autorización, y luego presenta el valor original al canjearlo. Si alguien intercepta el código por el camino no puede hacer nada con él, porque no conoce ese valor.
+
+El nombre es arbitrario, elegido para que se entienda de un vistazo qué representa cada cliente:
 - api-backend: un proceso de servidor, confidencial, sin persona.
 - spa-web: una aplicación de navegador, pública, con persona.
+
+Dos cosas sobre los campos de Login settings, que estos sí tienen efecto de seguridad:
+
+- La **URI de retorno** es el control principal de este flujo. Keycloak solo entrega el código de autorización a una dirección que esté en esa lista. Si no existiera esa comprobación, cualquiera podría arrancar el flujo con mi client_id y pedir que el código aterrizara en su propio servidor. Por eso en producción no se pone un comodín ahí ni de broma.
+- Los **Web origins** son otra cosa distinta: controlan CORS, o sea desde qué dominios puede el navegador llamar a Keycloak por JavaScript. El asterisco me lo permito porque esto es un laboratorio.
 
 
 Vamos a instalar postman para escritorio en Windows:
@@ -1145,9 +1192,9 @@ Variables de entorno: defines una vez la URL base o el client_id y las usas en t
 Scripts: puedes ejecutar código antes y después de cada petición, por ejemplo para extraer el token de la respuesta y guardarlo en una variable automáticamente.
 Ayudante de OAuth 2.0: y esta es la razón por la que lo usamos ahora. Ejecuta el flujo completo por ti, incluido el paso por el navegador para que te autentiques, y la gestión de PKCE. Con curl ese flujo es un incordio, porque hay que interceptar a mano el código de autorización que vuelve en la URL.
 
-En el sector se usa a diario para probar endpoints, depurar integraciones y documentar APIs. Que lo sepas manejar era una de tus lagunas declaradas, y con esta práctica queda cubierta.
+En el sector se usa a diario para probar endpoints, depurar integraciones y documentar APIs.
 
-Un apunte de criterio que ya comentamos y que conviene mantener: el primer flujo lo hiciste con curl a propósito, para ver la mecánica sin capas intermedias. Ahora que entiendes lo que ocurre por debajo, Postman es comodidad, no magia.
+El primer flujo lo hice con curl a propósito, para ver la mecánica sin capas por encima. Ahora que entiendo lo que pasa por debajo, Postman es comodidad y no magia.
 
 En nuestro caso no vamos a iniciar sesión:
 
@@ -1177,11 +1224,16 @@ Rellena:
 - State: pon cualquier cosa, por ejemplo xyz123
 - Client Authentication: "Send client credentials in body"
 
+Dos de esos campos hay que explicarlos. El **State** no está de adorno: es un valor que genera el cliente, viaja en la petición y vuelve en la respuesta, y sirve para comprobar que lo que recibe corresponde a algo que pidió él. Es la defensa clásica contra CSRF en este flujo. Y el **Code Verifier** que Postman rellena solo es la pieza de PKCE que explicaba antes.
+
 Y le tenemos que dar a "Get new access token":
 
 <img width="1305" height="530" alt="imagen" src="https://github.com/user-attachments/assets/9249bccf-7a7e-48a0-9224-08bac0fc781a" />
 
-Y nos abrirá una nueva pestaña vía web, si nos sale un error es porque no lo hicimos en el realm correcto.
+Y nos abrirá una nueva pestaña en el navegador. A mí me salió un error "Client not found", y era porque había creado el cliente en el realm equivocado. Los realms son fronteras estrictas, y un cliente que vive en `master` no existe para `lab-iam`.
+
+> [!NOTE]
+> Otra cosa que me pasó: al terminar la autenticación no volvía nada a Postman. Era el bloqueador de ventanas emergentes del navegador. El retorno del flujo se hace abriendo una ventana nueva, así que si el navegador la bloquea el token no llega nunca, aunque te hayas autenticado bien.
 
 <img width="1427" height="717" alt="imagen" src="https://github.com/user-attachments/assets/d15e9161-0b4e-4e05-9845-426e86055284" />
 
@@ -1193,10 +1245,38 @@ Y aquí lo tenemos:
 
 <img width="1381" height="807" alt="imagen" src="https://github.com/user-attachments/assets/f76dcb85-c2d0-46ee-b951-42ebe12cc2a1" />
 
-/userinfo devuelve las afirmaciones de identidad de la persona dueña del token, limitadas a los ámbitos concedidos. En tu caso, con openid email profile, debería salir algo así:
+### 3.5.1 Los tres tokens, comparados
+
+Para mí este panel es el momento clave de toda la práctica, porque es la primera vez que veo los tres tokens juntos. Antes de seguir los voy a comparar, porque cada uno sirve para una cosa distinta y eso se nota en lo que llevan dentro.
+
+Decodificando los tres cuerpos, lo que mejor los distingue es la audiencia:
+
+- access_token: `"aud": "account"`, `"azp": "spa-web"`, `"typ": "Bearer"`.
+- id_token: `"aud": "spa-web"`, `"typ": "ID"`.
+- refresh_token: `"aud": "http://localhost:8080/realms/lab-iam"`, `"typ": "Refresh"`.
+
+Y ahí está la teoría que había leído, pero ahora con datos delante. El ID token va dirigido al cliente, porque su trabajo es contarle a la aplicación quién ha entrado. El refresh token va dirigido al propio realm, porque solo el servidor de autorización debería recibirlo. Y el access token va dirigido a una API.
+
+Hay otra cosa que a mí se me habría pasado y que explica mucho: los algoritmos de firma no son los mismos.
+
+- El access token y el id token van firmados con **RS256**, y su `kid` es el mismo que aparece publicado en el endpoint de claves.
+- El refresh token va firmado con **HS512**, y su `kid` no aparece en ese endpoint.
+
+RS256 es asimétrico: Keycloak firma con su clave privada y cualquiera valida con la pública, que está publicada. Lógico, porque esos dos tokens los van a validar terceros. HS512 es simétrico: la misma clave firma y valida, y por eso no la publica en ningún sitio. También lógico, porque nadie que no sea Keycloak tiene por qué validar un refresh token. Ese token no está hecho para que lo lea nadie, está hecho para volver a casa.
+
+Las vidas también difieren: 300 segundos el access token y 1800 el refresh token. En producción la distancia es mucho mayor, pero la proporción ya ilustra la idea de que uno se usa mucho y dura poco, y el otro se usa poco y dura mucho.
+
+En cuanto al contenido, el id token trae nombre, usuario y correo, pero ningún rol. El access token trae los roles además del perfil. Y el refresh token no trae ni nombre ni roles, solo identificadores, porque nadie lo va a leer para decidir nada.
+
+Aparecen además dos campos que no existían en el flujo anterior: `sid` y `session_state`, con el mismo valor. Es el identificador de la sesión de usuario en Keycloak. En el flujo de credenciales de cliente no había ninguno, porque no había persona ni sesión que mantener. Es lo que permite el inicio de sesión único: si otra aplicación inicia un flujo con este mismo navegador, Keycloak reconoce la sesión y no vuelve a pedir credenciales.
+
+También aparece `auth_time`, que dice cuándo me autentiqué de verdad, y que no tiene por qué coincidir con el momento en que se emitió el token. En mi caso había varios minutos de diferencia entre `auth_time` e `iat`, y es porque se estaba reutilizando una sesión que ya tenía abierta. Fijándome más, el `acr` valía 0 cuando reutilizaba la sesión y 1 cuando me acababa de autenticar. Lo dejo como observación de lo que he medido yo, no como algo que haya podido confirmar en la documentación.
+
+### 3.5.2 Qué devuelve /userinfo
+
+/userinfo devuelve las afirmaciones de identidad de la persona dueña del token, limitadas a los ámbitos concedidos. Con los ámbitos openid email profile, la respuesta es esta:
 
 <pre>
-json
 {
   "sub": "920ba24c-b418-4c90-99af-48c49078b7a1",
   "email_verified": true,
@@ -1216,7 +1296,9 @@ El id_token es una foto del momento del inicio de sesión. Si el usuario cambia 
 
 Permite mantener los tokens pequeños. Un proveedor puede emitir un id_token mínimo y dejar que quien necesite el perfil completo lo pida aparte. Los tokens viajan en cada petición, así que cada byte cuenta.
 
-Fíjate además en quién es el sujeto: ese sub es el mismo que aparece en los tres tokens. Es el identificador inmutable de cesar23 dentro de este realm, y es lo que una aplicación guardaría en su base de datos para asociar sus datos a esa persona, nunca el nombre de usuario ni el correo, que pueden cambiar.
+Otra cosa a mirar es el sujeto: ese sub es el mismo que sale en los tres tokens. Es el identificador de cesar23 dentro de este realm y no cambia nunca, así que es lo que una aplicación guardaría en su base de datos para asociarle sus datos. Nunca el nombre de usuario ni el correo, que sí pueden cambiar.
+
+Y lo que cierra el bloque: es exactamente el mismo endpoint que antes me devolvió un 403 por no llevar el ámbito openid. Misma URL y mismo servidor. Lo único que ha cambiado es qué token presento.
 
 Le damos a `Use this token`.
 
@@ -1228,7 +1310,7 @@ Y abajo nos aparecerá como la "query":
 
 <img width="1406" height="787" alt="imagen" src="https://github.com/user-attachments/assets/ea15641b-3271-4e3f-9a70-d750fd47780e" />
 
-## 3.7 VER LA RENOVACION Y LA ROTACION EN DIRECTO
+## 3.6 VER LA RENOVACIÓN Y LA ROTACIÓN EN DIRECTO
 
 Desde Keycloak, vamos al realm `lab-iam`.
 
@@ -1258,7 +1340,9 @@ curl -s -X POST http://localhost:8080/realms/lab-iam/protocol/openid-connect/tok
   -d refresh_token=$RT | jq
 ```
 
-Con esto confirmaremos la rotación, el refresh token que ha llegado, es distinto al que enviamos.
+Con esto confirmaremos la rotación: el refresh token que ha llegado es distinto al que enviamos.
+
+Dentro de ese refresh token nuevo aparece además un campo que antes no estaba, `reuse_id`. Sale justo al activar Revoke Refresh Token, y es el marcador con el que Keycloak sigue la cadena de rotaciones para pillar a quien intente usar un eslabón ya gastado.
 
 <img width="1476" height="237" alt="imagen" src="https://github.com/user-attachments/assets/f6375909-8aa4-47f2-88bd-73c6fdbe97a4" />
 
@@ -1273,9 +1357,11 @@ curl -s -X POST http://localhost:8080/realms/lab-iam/protocol/openid-connect/tok
 
 <img width="1247" height="200" alt="imagen" src="https://github.com/user-attachments/assets/f13e7073-4506-4674-80f3-750d1d2dfdc7" />
 
-Nos da error y eso está bien, porque es así como lo configuramos.
+La respuesta es `invalid_grant` con la descripción "Maximum allowed refresh token reuse exceeded", que enlaza directamente con el Refresh Token Max Reuse que puse a 0.
 
-## 3.8 PROVOCAR LOS FALLOS A PROPÓSITO
+Nos da error y eso está bien, porque es así como lo configuramos. Lo que hay detrás es esto: si alguien presenta un refresh token ya canjeado, significa que hay dos manos sobre la misma credencial, y lo seguro ante esa señal es cortar en lugar de seguir emitiendo tokens.
+
+## 3.7 REVOCAR UN TOKEN TODAVÍA VÁLIDO
 
 Vamos a Postman de nuevo y pedir un juego nuevo de tokens, tanto el refresh como el access.
 
@@ -1311,19 +1397,34 @@ curl -s -X POST http://localhost:8080/realms/lab-iam/protocol/openid-connect/tok
   -d refresh_token=$RT2 | jq
 ```
 
-Como es evidente debería de lanzar error:
+La respuesta es un error, que es justo lo que buscábamos:
+
+```json
+{
+  "error": "invalid_grant",
+  "error_description": "Session not active"
+}
+```
+
+El mensaje dice más de lo que parece. No responde que el token sea inválido, responde que la sesión no está activa. O sea que revocar un refresh token en Keycloak no mata solo esa credencial, cierra la sesión del usuario entera.
+
+Para ver hasta dónde llega, lanzo el access token del mismo juego contra /userinfo justo después de revocar, sin darle tiempo a caducar:
 
 ```
 curl -i -s http://localhost:8080/realms/lab-iam/protocol/openid-connect/userinfo \
   -H "Authorization: Bearer $AT2"
 ```
 
-Y no, no sigue vivo el token porque está revocado:
-
 <img width="1332" height="457" alt="imagen" src="https://github.com/user-attachments/assets/03b242af-76f2-4946-8771-1f174cc2b1f6" />
 
-Vamos a volver a generar otro, esta vez sin revocarlo para que veáis la diferencia:
+También lo rechaza, con un 401. Y el motivo es que /userinfo es un endpoint del propio Keycloak, así que comprueba que la sesión asociada al token siga viva.
+
+Pero esto no se puede generalizar, y es lo más importante que saco de esta parte: **el alcance de una revocación depende de cómo valide cada servicio**. Una API mía que verifique el JWT en local contra las claves públicas del JWKS no le pregunta nada a Keycloak, así que seguiría aceptando ese access token hasta que se le caducara solo.
+
+Ahí está el compromiso de diseño. Si quiero que una revocación tenga efecto inmediato en todas partes, mis servicios tienen que introspeccionar, y eso cuesta una llamada de red en cada petición. Si prefiero validar en local por rendimiento, asumo una ventana en la que un token revocado sigue funcionando, y esa ventana es exactamente la vida del access token. Por eso se le da una vida tan corta.
+
+Para cerrar el contraste, generamos otro juego de tokens y lo canjeamos sin revocar nada:
 
 <img width="1462" height="765" alt="imagen" src="https://github.com/user-attachments/assets/a1b020a5-26c3-4c7c-bce5-884415759af4" />
 
-Canjeado y funcionando. Esto es en caso de no revocarlo.
+Canjeado y funcionando. Lo único que cambia entre las dos pruebas es la llamada al endpoint de revocación.
