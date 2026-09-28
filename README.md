@@ -1275,3 +1275,55 @@ curl -s -X POST http://localhost:8080/realms/lab-iam/protocol/openid-connect/tok
 
 Nos da error y eso está bien, porque es así como lo configuramos.
 
+## 3.8 PROVOCAR LOS FALLOS A PROPÓSITO
+
+Vamos a Postman de nuevo y pedir un juego nuevo de tokens, tanto el refresh como el access.
+
+
+
+Ponemos el refresh en esta variable:
+```
+RT2='PEGA_EL_REFRESH_NUEVO'
+```
+
+Ponemos el access en esta variable:
+
+```
+AT2='PEGA_EL_ACCESS_DEL_MISMO_JUEGO'
+```
+
+Revocamos:
+
+```
+curl -i -s -X POST http://localhost:8080/realms/lab-iam/protocol/openid-connect/revoke \
+  -d client_id=spa-web \
+  -d token=$RT2 \
+  -d token_type_hint=refresh_token
+```
+
+<img width="1261" height="292" alt="imagen" src="https://github.com/user-attachments/assets/136a9ee3-e6a8-4c92-a2af-00ed3fe0bd4f" />
+
+Intentaremos canjearlo después:
+
+```
+curl -s -X POST http://localhost:8080/realms/lab-iam/protocol/openid-connect/token \
+  -d grant_type=refresh_token -d client_id=spa-web \
+  -d refresh_token=$RT2 | jq
+```
+
+Como es evidente debería de lanzar error:
+
+```
+curl -i -s http://localhost:8080/realms/lab-iam/protocol/openid-connect/userinfo \
+  -H "Authorization: Bearer $AT2"
+```
+
+Y no, no sigue vivo el token porque está revocado:
+
+<img width="1332" height="457" alt="imagen" src="https://github.com/user-attachments/assets/03b242af-76f2-4946-8771-1f174cc2b1f6" />
+
+Vamos a volver a generar otro, esta vez sin revocarlo para que veáis la diferencia:
+
+<img width="1462" height="765" alt="imagen" src="https://github.com/user-attachments/assets/a1b020a5-26c3-4c7c-bce5-884415759af4" />
+
+Canjeado y funcionando. Esto es en caso de no revocarlo.
