@@ -4,11 +4,10 @@ En esta práctica monto desde cero un laboratorio de gestión de identidades y a
 
 No quiero quedarme en levantar la herramienta y que funcione. Lo que busco es entender por qué funciona así: qué es un token realmente, qué diferencia hay entre autenticar y autorizar, por qué hay tres tokens distintos y qué pasa cuando algo falla. Por eso una parte de la práctica consiste en romper cosas a propósito y apuntar lo que responde el servidor de verdad, no lo que yo esperaba que respondiera.
 
-Voy a tocar dos flujos de OAuth 2.0, el de credenciales de cliente y el de código de autorización con PKCE, y a partir de ahí los tokens JWT: leerlos, validarlos, verlos caducar, rotarlos y revocarlos. También uso Postman, que es una de las cosas que quería aprender a manejar.
+Voy a tocar dos flujos de OAuth 2.0, el de credenciales de cliente y el de código de autorización con PKCE, y a partir de ahí los tokens JWT: leerlos, validarlos, verlos caducar, rotarlos y revocarlos. También uso Postman.
 
-Lo que no entra aquí: SAML, la federación contra LDAP o Active Directory y el aprovisionamiento con SCIM. Eso lo dejo para prácticas siguientes.
-
-Un aviso antes de empezar: todo esto corre en mi máquina, sobre HTTP y sin TLS, y con contraseñas de juguete. Nada de lo que hay aquí sirve tal cual para producción, y donde eso importa lo digo.
+Lo que no entra aquí: SAML, la federación contra LDAP o Active Directory y el aprovisionamiento con SCIM. Eso lo dejo para prácticas siguientes.<br>
+Todo esto corre en mi máquina, sobre HTTP y sin TLS, y con contraseñas fáciles. Medidas poco realistas y entornos de simulación.
 
 # 2.0 Definiciones.
 
