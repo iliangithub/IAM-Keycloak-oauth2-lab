@@ -1177,3 +1177,6 @@ Y le tenemos que dar a "Get new access token":
 <img width="1305" height="530" alt="imagen" src="https://github.com/user-attachments/assets/9249bccf-7a7e-48a0-9224-08bac0fc781a" />
 
 Y nos abrirá una nueva pestaña vía web, si nos sale un error es porque no lo hicimos en el realm correcto.
+
+<img width="1427" height="717" alt="imagen" src="https://github.com/user-attachments/assets/d15e9161-0b4e-4e05-9845-426e86055284" />
+
